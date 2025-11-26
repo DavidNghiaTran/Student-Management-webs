@@ -1,0 +1,98 @@
+{% extends "_layout.html" %}
+
+{% block title %}Tiến độ lớp học{% endblock %}
+
+{% block styles %}
+<style>
+    .stat-card {
+        padding: 14px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .stat-title { font-size: 0.9rem; color: var(--muted-text); margin-bottom: 6px; }
+    .stat-value { font-size: 1.6rem; font-weight: 700; }
+    .stat-sub { font-size: 0.9rem; color: var(--muted-text); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Tổng quan tiến độ</span>
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            <label for="lop">Chọn lớp:</label>
+            <select name="lop" id="lop" onchange="this.form.submit()">
+                <option value="">Tất cả lớp</option>
+                {% for lop in danh_sach_lop %}
+                    <option value="{{ lop }}" {% if selected_lop == lop %}selected{% endif %}>{{ lop }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+            <div class="stat-card">
+                <div class="stat-title">Tiến độ trung bình</div>
+                <div class="stat-value">{{ "%.1f"|format(avg_completion) }}%</div>
+                <div class="stat-sub">Hoàn thành tín chỉ</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">GPA trung bình (hệ 10)</div>
+                <div class="stat-value">{{ avg_gpa is not none and ("%.2f"|format(avg_gpa)) or "--" }}</div>
+                <div class="stat-sub">Chỉ tính SV đã có điểm</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Số sinh viên</div>
+                <div class="stat-value">{{ progress_rows|length }}</div>
+                <div class="stat-sub">Đang lọc: {{ selected_lop or 'Tất cả' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Chi tiết theo sinh viên</div>
+    <div class="card-body">
+        {% if not progress_rows %}
+            <p>Không có dữ liệu tiến độ cho bộ lọc hiện tại.</p>
+        {% else %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Mã SV</th>
+                        <th>Họ tên</th>
+                        <th>Lớp</th>
+                        <th>Môn hoàn thành</th>
+                        <th>Đang học</th>
+                        <th>Tín chỉ hoàn thành</th>
+                        <th>Hoàn thành %</th>
+                        <th>GPA (10)</th>
+                        <th>GPA (4)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in progress_rows %}
+                        <tr>
+                            <td>{{ row.ma_sv }}</td>
+                            <td>{{ row.ho_ten }}</td>
+                            <td>{{ row.lop }}</td>
+                            <td>{{ row.completed_courses }}</td>
+                            <td>{{ row.in_progress }}</td>
+                            <td>{{ row.completed_credits }}</td>
+                            <td>
+                                <div style="background:rgba(255,255,255,0.1);border-radius:6px;overflow:hidden;">
+                                    <div style="height:10px;background:linear-gradient(90deg,var(--primary-color),var(--secondary-color));width:{{ "%.1f"|format(row.completion_pct) }}%;"></div>
+                                </div>
+                                <small>{{ "%.1f"|format(row.completion_pct) }}%</small>
+                            </td>
+                            <td>{{ row.gpa_10 is not none and ("%.2f"|format(row.gpa_10)) or "-" }}</td>
+                            <td>{{ row.gpa_4 is not none and ("%.2f"|format(row.gpa_4)) or "-" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

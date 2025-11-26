@@ -120,10 +120,10 @@
             {% if current_user.vai_tro.value == 'SINHVIEN' %}
                 <a href="{{ url_for('student_dashboard') }}"><i class="fa-solid fa-bell"></i> Thông báo</a>
                 <a href="{{ url_for('student_profile') }}"><i class="fa-solid fa-user-pen"></i> Thông tin cá nhân</a>
-                <a href="#"><i class="fa-solid fa-book-open"></i> Chương trình học</a>
                 <a href="{{ url_for('student_grades') }}"><i class="fa-solid fa-chart-simple"></i> Xem điểm & GPA</a>
-                <a href="#"><i class="fa-solid fa-calendar-days"></i> Xem lịch học</a>
-                <a href="#"><i class="fa-solid fa-file-pen"></i> Đăng ký môn học</a>
+                <a href="{{ url_for('student_progress') }}"><i class="fa-solid fa-chart-line"></i> Tiến độ học tập</a>
+                <a href="{{ url_for('student_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch học</a>
+                <a href="{{ url_for('student_assignments') }}"><i class="fa-solid fa-list-check"></i> Bài tập được giao</a>
             {% elif current_user.vai_tro.value == 'GIAOVIEN' %}
            
 
@@ -136,6 +136,9 @@
                     <a href="{{ url_for('admin_import_students') }}"><i class="fa-solid fa-file-excel"></i> Nhập Sinh viên (Excel)</a>
                     <a href="{{ url_for('admin_manage_courses') }}"><i class="fa-solid fa-book"></i> Quản lý Môn học</a>
                     <a href="{{ url_for('admin_manage_grades') }}"><i class="fa-solid fa-pen-to-square"></i> Quản lý Điểm</a>
+                    <a href="{{ url_for('admin_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch giảng dạy</a>
+                    <a href="{{ url_for('admin_assignments') }}"><i class="fa-solid fa-list-check"></i> Giao bài tập</a>
+                    <a href="{{ url_for('admin_progress') }}"><i class="fa-solid fa-chart-line"></i> Theo dõi tiến độ</a>
                     <a href="{{ url_for('admin_export_grades') }}" class="nav-link"><i class="fa-solid fa-file-export"></i> Xuất điểm (Excel)</a>
                     <a href="{{ url_for('admin_reports_index') }}"><i class="fa-solid fa-chart-bar"></i> Báo cáo & Thống kê</a>
                     <a href="{{ url_for('admin_send_notification') }}"><i class="fa-solid fa-paper-plane"></i> Gửi Thông báo</a>

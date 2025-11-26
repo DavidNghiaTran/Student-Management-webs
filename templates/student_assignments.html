@@ -1,0 +1,52 @@
+{% extends "_layout.html" %}
+
+{% block title %}Bài tập được giao{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">Bài tập được giao - Lớp {{ sv.lop or 'N/A' }}</div>
+    <div class="card-body">
+        {% if not assignments %}
+            <p>Chưa có bài tập nào được giao cho lớp của bạn.</p>
+        {% else %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Môn</th>
+                        <th>Hạn nộp</th>
+                        <th>Nội dung</th>
+                        <th>File/Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in assignments %}
+                        {% set overdue = a.han_nop and a.han_nop < today %}
+                        <tr {% if overdue %}style="background: rgba(220,38,38,0.08);" {% endif %}>
+                            <td>{{ a.tieu_de }}</td>
+                            <td>{{ a.mon_hoc.ten_mh if a.mon_hoc else (a.ma_mh or '-') }}</td>
+                            <td>
+                                {% if a.han_nop %}
+                                    <strong style="color: {% if overdue %}var(--danger-color){% else %}inherit{% endif %};">
+                                        {{ a.han_nop.strftime('%d/%m/%Y') }}
+                                    </strong>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td style="max-width:320px;">{{ a.noi_dung }}</td>
+                            <td>
+                                {% if a.tep_dinh_kem %}
+                                    <a href="{{ a.tep_dinh_kem }}" target="_blank" rel="noopener">Tài liệu</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

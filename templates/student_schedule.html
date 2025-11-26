@@ -1,0 +1,56 @@
+{% extends "_layout.html" %}
+
+{% block title %}Lịch học{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Lịch học - Lớp {{ sv.lop or 'N/A' }}</span>
+        <small style="color: var(--muted-text);">Mã SV: {{ sv.ma_sv if sv else 'N/A' }}</small>
+    </div>
+    <div class="card-body">
+        {% if not schedule_items %}
+            <p>Hiện chưa có lịch học nào cho lớp của bạn.</p>
+        {% else %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Môn học</th>
+                        <th>Ngày/Thứ</th>
+                        <th>Thời gian</th>
+                        <th>Phòng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in schedule_items %}
+                        <tr>
+                            <td>{{ item.tieu_de }}</td>
+                            <td>{{ item.mon_hoc.ten_mh if item.mon_hoc else (item.ma_mh or '-') }}</td>
+                            <td>
+                                {% if item.ngay_hoc %}
+                                    {{ item.ngay_hoc.strftime('%d/%m/%Y') }}
+                                {% elif item.thu_trong_tuan %}
+                                    {{ item.thu_trong_tuan }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.gio_bat_dau or item.gio_ket_thuc %}
+                                    {{ item.gio_bat_dau or '?' }} - {{ item.gio_ket_thuc or '?' }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ item.phong or '-' }}</td>
+                            <td>{{ item.ghi_chu or '-' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

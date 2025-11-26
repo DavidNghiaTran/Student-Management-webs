@@ -1,0 +1,137 @@
+{% extends "_layout.html" %}
+
+{% block title %}Tiến độ học tập{% endblock %}
+
+{% block styles %}
+<style>
+    .stat-card {
+        padding: 14px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .stat-title {
+        font-size: 0.9rem;
+        color: var(--muted-text);
+        margin-bottom: 6px;
+    }
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+    .stat-sub {
+        font-size: 0.9rem;
+        color: var(--muted-text);
+        margin-top: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">Tổng quan</div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+            <div class="stat-card">
+                <div class="stat-title">Tiến độ tín chỉ</div>
+                <div class="stat-value">{{ "%.1f"|format(progress_pct) }}%</div>
+                <div class="stat-sub">{{ completed_credits }} / {{ total_credits }} tín chỉ</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Môn đã hoàn thành</div>
+                <div class="stat-value">{{ completed_courses }}</div>
+                <div class="stat-sub">Đang học: {{ in_progress_courses }} | Chưa học: {{ pending_courses }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">GPA (10)</div>
+                <div class="stat-value">{{ gpa_10 is not none and ("%.2f"|format(gpa_10)) or "--" }}</div>
+                <div class="stat-sub">GPA (4): {{ gpa_4 is not none and ("%.2f"|format(gpa_4)) or "--" }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Tiến độ theo học kỳ</span>
+    </div>
+    <div class="card-body">
+        {% if semester_chart_labels %}
+            <div style="max-width:900px;margin:auto;height:320px;">
+                <canvas id="semesterChart"></canvas>
+            </div>
+        {% else %}
+            <p>Chưa có dữ liệu điểm để tính tiến độ theo học kỳ.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Chi tiết từng môn</div>
+    <div class="card-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Mã MH</th>
+                    <th>Tên môn học</th>
+                    <th>Học kỳ</th>
+                    <th>Tín chỉ</th>
+                    <th>Tiến độ</th>
+                    <th>Trạng thái</th>
+                    <th>Điểm TK</th>
+                    <th>Điểm chữ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in progress_rows %}
+                    <tr>
+                        <td>{{ row.ma_mh }}</td>
+                        <td>{{ row.ten_mh }}</td>
+                        <td>{{ row.hoc_ky }}</td>
+                        <td>{{ row.so_tin_chi }}</td>
+                        <td>
+                            <div style="background:rgba(255,255,255,0.1);border-radius:6px;overflow:hidden;">
+                                <div style="height:10px;background:linear-gradient(90deg,var(--primary-color),var(--secondary-color));width:{{ row.component_progress }}%;"></div>
+                            </div>
+                            <small>{{ row.component_progress }}%</small>
+                        </td>
+                        <td>{{ row.status }}</td>
+                        <td>{{ row.diem_tong_ket is not none and ("%.2f"|format(row.diem_tong_ket)) or "-" }}</td>
+                        <td>{{ row.diem_chu or "-" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if semester_chart_labels %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('semesterChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ semester_chart_labels | tojson | safe }},
+            datasets: [{
+                label: 'Tỷ lệ hoàn thành (%)',
+                data: {{ semester_chart_values | tojson | safe }},
+                backgroundColor: 'rgba(212,20,90,0.7)',
+                borderColor: 'rgba(212,20,90,1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, max: 100, title: { display: true, text: 'Hoàn thành (%)' } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

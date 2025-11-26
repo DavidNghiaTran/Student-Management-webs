@@ -1,0 +1,138 @@
+{% extends "_layout.html" %}
+
+{% block title %}Lịch giảng dạy{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">Thêm buổi học/giảng dạy</div>
+    <div class="card-body">
+        <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+            <div>
+                <label>Tiêu đề</label>
+                <input type="text" name="tieu_de" placeholder="VD: Toán rời rạc" />
+            </div>
+            <div>
+                <label>Lớp</label>
+                <select name="lop" required>
+                    <option value="">-- Chọn lớp --</option>
+                    {% for lop in danh_sach_lop %}
+                        <option value="{{ lop }}">{{ lop }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Môn học</label>
+                <select name="ma_mh">
+                    <option value="">-- Không chọn --</option>
+                    {% for mh in danh_sach_mon_hoc %}
+                        <option value="{{ mh.ma_mh }}">{{ mh.ma_mh }} - {{ mh.ten_mh }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Thứ trong tuần</label>
+                <select name="thu_trong_tuan">
+                    <option value="">-- Tuần cố định --</option>
+                    <option>Thứ 2</option>
+                    <option>Thứ 3</option>
+                    <option>Thứ 4</option>
+                    <option>Thứ 5</option>
+                    <option>Thứ 6</option>
+                    <option>Thứ 7</option>
+                    <option>Chủ nhật</option>
+                </select>
+            </div>
+            <div>
+                <label>Ngày cụ thể</label>
+                <input type="date" name="ngay_hoc" />
+            </div>
+            <div>
+                <label>Giờ bắt đầu</label>
+                <input type="text" name="gio_bat_dau" placeholder="08:00" />
+            </div>
+            <div>
+                <label>Giờ kết thúc</label>
+                <input type="text" name="gio_ket_thuc" placeholder="10:00" />
+            </div>
+            <div>
+                <label>Phòng</label>
+                <input type="text" name="phong" placeholder="A101" />
+            </div>
+            <div style="grid-column:1/-1;">
+                <label>Ghi chú</label>
+                <textarea name="ghi_chu" rows="2" placeholder="Nội dung thêm..."></textarea>
+            </div>
+            <div style="grid-column:1/-1; text-align:right;">
+                <button type="submit" class="btn btn-primary">Lưu lịch</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Danh sách lịch</span>
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            <label for="lop">Lọc lớp:</label>
+            <select name="lop" id="lop" onchange="this.form.submit()">
+                <option value="">Tất cả</option>
+                {% for lop in danh_sach_lop %}
+                    <option value="{{ lop }}" {% if selected_lop == lop %}selected{% endif %}>{{ lop }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if not schedule_items %}
+            <p>Chưa có lịch nào.</p>
+        {% else %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Lớp</th>
+                        <th>Môn</th>
+                        <th>Ngày/Thứ</th>
+                        <th>Thời gian</th>
+                        <th>Phòng</th>
+                        <th>Ghi chú</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in schedule_items %}
+                        <tr>
+                            <td>{{ item.tieu_de }}</td>
+                            <td>{{ item.lop }}</td>
+                            <td>{{ item.mon_hoc.ten_mh if item.mon_hoc else (item.ma_mh or '-') }}</td>
+                            <td>
+                                {% if item.ngay_hoc %}
+                                    {{ item.ngay_hoc.strftime('%d/%m/%Y') }}
+                                {% elif item.thu_trong_tuan %}
+                                    {{ item.thu_trong_tuan }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.gio_bat_dau or item.gio_ket_thuc %}
+                                    {{ item.gio_bat_dau or '?' }} - {{ item.gio_ket_thuc or '?' }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ item.phong or '-' }}</td>
+                            <td>{{ item.ghi_chu or '-' }}</td>
+                            <td>
+                                <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=item.id) }}" onsubmit="return confirm('Xóa lịch này?');">
+                                    <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

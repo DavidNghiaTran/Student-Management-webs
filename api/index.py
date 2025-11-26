@@ -57,6 +57,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
+from datetime import datetime, date
 from sqlalchemy.sql import func, case, literal_column
 from sqlalchemy import select, and_, text, inspect as sa_inspect
 from sqlalchemy.exc import NoSuchTableError
@@ -314,6 +315,42 @@ class ThongBao(db.Model):
 
     nguoi_gui = db.relationship('TaiKhoan', backref='thong_bao_da_gui', foreign_keys=[ma_gv])
 
+# === Bang moi: Lich hoc / giang day ===
+class LichHoc(db.Model):
+    __tablename__ = 'lich_hoc'
+    id = db.Column(db.Integer, primary_key=True)
+    tieu_de = db.Column(db.String(200), nullable=False)
+    lop = db.Column(db.String(50), nullable=False)
+    ma_mh = db.Column(db.String(50), db.ForeignKey('mon_hoc.ma_mh'), nullable=True)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username'), nullable=True)
+    thu_trong_tuan = db.Column(db.String(20), nullable=True)
+    ngay_hoc = db.Column(db.Date, nullable=True)
+    gio_bat_dau = db.Column(db.String(20), nullable=True)
+    gio_ket_thuc = db.Column(db.String(20), nullable=True)
+    phong = db.Column(db.String(50), nullable=True)
+    ghi_chu = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    mon_hoc = db.relationship('MonHoc', backref='lich_hoc', lazy=True)
+    giao_vien = db.relationship('TaiKhoan', backref='lich_giang_day', foreign_keys=[ma_gv])
+
+
+# === Bang moi: Bai tap giao cho sinh vien ===
+class BaiTap(db.Model):
+    __tablename__ = 'bai_tap'
+    id = db.Column(db.Integer, primary_key=True)
+    tieu_de = db.Column(db.String(200), nullable=False)
+    noi_dung = db.Column(db.Text, nullable=False)
+    lop_nhan = db.Column(db.String(50), nullable=False)
+    ma_mh = db.Column(db.String(50), db.ForeignKey('mon_hoc.ma_mh'), nullable=True)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username'), nullable=False)
+    han_nop = db.Column(db.Date, nullable=True)
+    tep_dinh_kem = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    mon_hoc = db.relationship('MonHoc', backref='bai_tap', lazy=True)
+    giao_vien = db.relationship('TaiKhoan', backref='bai_tap_da_giao', foreign_keys=[ma_gv])
+
 # --- 3. LOGIC XÁC THỰC VÀ PHÂN QUYỀN ---
 @login_manager.user_loader
 def load_user(user_id):
@@ -328,6 +365,8 @@ def apply_schema_patches():
     global _TEACHER_SCHEMA_PATCHED
     if _TEACHER_SCHEMA_PATCHED:
         return
+    # Đảm bảo các bảng mới (lịch học, bài tập, ...) được tạo khi khởi động
+    db.create_all()
     ensure_teacher_profile_columns()
     _TEACHER_SCHEMA_PATCHED = True
 
@@ -558,6 +597,159 @@ def student_grades():
         chart_labels=chart_labels,
         chart_data=chart_data
     )
+
+
+@app.route('/student/schedule')
+@login_required
+@role_required(VaiTroEnum.SINHVIEN)
+def student_schedule():
+    sv = SinhVien.query.get(current_user.username)
+    lop_hoc = sv.lop if sv else None
+
+    schedule_items = []
+    if lop_hoc:
+        schedule_items = LichHoc.query.filter_by(lop=lop_hoc).order_by(
+            LichHoc.ngay_hoc.asc(),
+            LichHoc.thu_trong_tuan.asc(),
+            LichHoc.gio_bat_dau.asc(),
+            LichHoc.id.desc()
+        ).all()
+
+    schedule_by_day = {}
+    for item in schedule_items:
+        key = item.ngay_hoc.strftime('%d/%m/%Y') if item.ngay_hoc else (item.thu_trong_tuan or 'Khác')
+        schedule_by_day.setdefault(key, []).append(item)
+
+    return render_template(
+        'student_schedule.html',
+        sv=sv,
+        schedule_items=schedule_items,
+        schedule_by_day=schedule_by_day
+    )
+
+
+@app.route('/student/assignments')
+@login_required
+@role_required(VaiTroEnum.SINHVIEN)
+def student_assignments():
+    sv = SinhVien.query.get(current_user.username)
+    lop_hoc = sv.lop if sv else None
+
+    assignments = []
+    if lop_hoc:
+        assignments = BaiTap.query.filter_by(lop_nhan=lop_hoc).order_by(
+            case((BaiTap.han_nop == None, 1), else_=0),
+            BaiTap.han_nop.asc(),
+            BaiTap.created_at.desc()
+        ).all()
+
+    return render_template(
+        'student_assignments.html',
+        sv=sv,
+        assignments=assignments,
+        today=date.today()
+    )
+
+
+@app.route('/student/progress')
+@login_required
+@role_required(VaiTroEnum.SINHVIEN)
+def student_progress():
+    ma_sv = current_user.username
+    sv = SinhVien.query.get(ma_sv)
+
+    mon_hoc_list = MonHoc.query.order_by(MonHoc.hoc_ky, MonHoc.ma_mh).all()
+    total_credits = sum(mh.so_tin_chi for mh in mon_hoc_list)
+    total_courses = len(mon_hoc_list)
+
+    ket_qua_dict = {kq.ma_mh: kq for kq in KetQua.query.filter_by(ma_sv=ma_sv).all()}
+
+    completed_credits = 0
+    completed_courses = 0
+    in_progress_courses = 0
+    points_10 = 0
+    points_4 = 0
+
+    progress_rows = []
+    semester_summary = {}
+
+    for mh in mon_hoc_list:
+        kq = ket_qua_dict.get(mh.ma_mh)
+        component_progress = 0
+        if kq:
+            if kq.diem_chuyen_can is not None:
+                component_progress += 20
+            if kq.diem_giua_ky is not None:
+                component_progress += 20
+            if kq.diem_cuoi_ky is not None:
+                component_progress += 60
+
+        status = 'Chưa bắt đầu'
+        diem_tong_ket = None
+        diem_chu = None
+        if kq:
+            diem_tong_ket = kq.diem_tong_ket
+            diem_chu = kq.diem_chu
+            if diem_tong_ket is not None:
+                status = 'Hoàn thành'
+                completed_courses += 1
+                completed_credits += mh.so_tin_chi
+                points_10 += diem_tong_ket * mh.so_tin_chi
+                points_4 += convert_10_to_4_scale(diem_tong_ket) * mh.so_tin_chi
+            elif component_progress > 0:
+                status = 'Đang học'
+                in_progress_courses += 1
+
+        progress_rows.append({
+            'ma_mh': mh.ma_mh,
+            'ten_mh': mh.ten_mh,
+            'hoc_ky': mh.hoc_ky,
+            'so_tin_chi': mh.so_tin_chi,
+            'diem_tong_ket': diem_tong_ket,
+            'diem_chu': diem_chu,
+            'component_progress': component_progress,
+            'status': status
+        })
+
+        summary = semester_summary.setdefault(mh.hoc_ky, {'total': 0, 'completed': 0, 'in_progress': 0})
+        summary['total'] += 1
+        if status == 'Hoàn thành':
+            summary['completed'] += 1
+        elif status == 'Đang học':
+            summary['in_progress'] += 1
+
+    overall_progress_pct = (completed_credits / total_credits * 100) if total_credits > 0 else 0
+    gpa_10 = (points_10 / completed_credits) if completed_credits > 0 else None
+    gpa_4 = (points_4 / completed_credits) if completed_credits > 0 else None
+
+    semester_chart_labels = []
+    semester_chart_values = []
+    for hk in sorted(semester_summary.keys()):
+        total = semester_summary[hk]['total']
+        completed = semester_summary[hk]['completed']
+        pct = (completed / total * 100) if total > 0 else 0
+        semester_chart_labels.append(f"HK {hk}")
+        semester_chart_values.append(round(pct, 2))
+
+    pending_courses = total_courses - completed_courses - in_progress_courses
+
+    return render_template(
+        'student_progress.html',
+        sv=sv,
+        progress_rows=progress_rows,
+        total_credits=total_credits,
+        completed_credits=completed_credits,
+        completed_courses=completed_courses,
+        in_progress_courses=in_progress_courses,
+        pending_courses=pending_courses,
+        progress_pct=overall_progress_pct,
+        gpa_10=gpa_10,
+        gpa_4=gpa_4,
+        semester_summary=semester_summary,
+        semester_chart_labels=semester_chart_labels,
+        semester_chart_values=semester_chart_values
+    )
+
 # 4.3. Chức năng của Giáo viên
 @app.route('/admin/dashboard')
 @login_required
@@ -592,6 +784,278 @@ def admin_dashboard():
         'admin_dashboard.html',
         notifications=notifications,
         has_real_announcements=has_real_announcements
+    )
+
+@app.route('/admin/schedule', methods=['GET', 'POST'])
+@login_required
+@role_required(VaiTroEnum.GIAOVIEN)
+def admin_schedule():
+    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+
+    selected_lop = request.args.get('lop')
+
+    if request.method == 'POST':
+        lop = request.form.get('lop')
+        tieu_de = (request.form.get('tieu_de') or '').strip()
+        ma_mh = request.form.get('ma_mh') or None
+        thu_trong_tuan = (request.form.get('thu_trong_tuan') or '').strip() or None
+        ngay_hoc_raw = request.form.get('ngay_hoc')
+        gio_bat_dau = (request.form.get('gio_bat_dau') or '').strip() or None
+        gio_ket_thuc = (request.form.get('gio_ket_thuc') or '').strip() or None
+        phong = (request.form.get('phong') or '').strip() or None
+        ghi_chu = (request.form.get('ghi_chu') or '').strip() or None
+
+        if not lop:
+            flash('Vui lòng chọn hoặc nhập Lớp cho lịch học.', 'danger')
+            return redirect(url_for('admin_schedule', lop=selected_lop))
+
+        if not tieu_de:
+            tieu_de = f'Lịch học {lop}' if not ma_mh else f'{ma_mh} - {lop}'
+
+        ngay_hoc = None
+        if ngay_hoc_raw:
+            try:
+                ngay_hoc = datetime.strptime(ngay_hoc_raw, '%Y-%m-%d').date()
+            except ValueError:
+                flash('Ngày học không hợp lệ. Định dạng chuẩn: YYYY-MM-DD', 'danger')
+                return redirect(url_for('admin_schedule', lop=lop))
+
+        try:
+            new_item = LichHoc(
+                tieu_de=tieu_de,
+                lop=lop,
+                ma_mh=ma_mh,
+                ma_gv=current_user.username,
+                thu_trong_tuan=thu_trong_tuan,
+                ngay_hoc=ngay_hoc,
+                gio_bat_dau=gio_bat_dau,
+                gio_ket_thuc=gio_ket_thuc,
+                phong=phong,
+                ghi_chu=ghi_chu
+            )
+            db.session.add(new_item)
+            db.session.commit()
+            flash('Đã thêm lịch học/giảng dạy.', 'success')
+            return redirect(url_for('admin_schedule', lop=lop))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi lưu lịch học: {e}', 'danger')
+            return redirect(url_for('admin_schedule'))
+
+    schedule_query = LichHoc.query
+    if selected_lop:
+        schedule_query = schedule_query.filter_by(lop=selected_lop)
+
+    schedule_items = schedule_query.order_by(
+        LichHoc.ngay_hoc.asc(),
+        LichHoc.thu_trong_tuan.asc(),
+        LichHoc.gio_bat_dau.asc(),
+        LichHoc.id.desc()
+    ).all()
+
+    return render_template(
+        'admin_schedule.html',
+        danh_sach_mon_hoc=danh_sach_mon_hoc,
+        danh_sach_lop=danh_sach_lop,
+        schedule_items=schedule_items,
+        selected_lop=selected_lop
+    )
+
+
+@app.route('/admin/schedule/<int:schedule_id>/delete', methods=['POST'])
+@login_required
+@role_required(VaiTroEnum.GIAOVIEN)
+def admin_delete_schedule(schedule_id):
+    schedule = LichHoc.query.get_or_404(schedule_id)
+    if schedule.ma_gv and schedule.ma_gv != current_user.username:
+        abort(403)
+    try:
+        db.session.delete(schedule)
+        db.session.commit()
+        flash('Đã xóa lịch học/giảng dạy.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi xóa lịch: {e}', 'danger')
+    return redirect(request.referrer or url_for('admin_schedule'))
+
+
+@app.route('/admin/assignments', methods=['GET', 'POST'])
+@login_required
+@role_required(VaiTroEnum.GIAOVIEN)
+def admin_assignments():
+    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+
+    selected_lop = request.args.get('lop')
+    show_all = request.args.get('all') == '1'
+
+    if request.method == 'POST':
+        tieu_de = (request.form.get('tieu_de') or '').strip()
+        noi_dung = (request.form.get('noi_dung') or '').strip()
+        lop_nhan = request.form.get('lop_nhan')
+        ma_mh = request.form.get('ma_mh') or None
+        han_nop_raw = request.form.get('han_nop')
+        tep_dinh_kem = (request.form.get('tep_dinh_kem') or '').strip() or None
+
+        if not tieu_de or not noi_dung or not lop_nhan:
+            flash('Tiêu đề, nội dung và Lớp nhận là bắt buộc.', 'danger')
+            return redirect(url_for('admin_assignments', lop=selected_lop))
+
+        han_nop = None
+        if han_nop_raw:
+            try:
+                han_nop = datetime.strptime(han_nop_raw, '%Y-%m-%d').date()
+            except ValueError:
+                flash('Hạn nộp không hợp lệ. Định dạng chuẩn: YYYY-MM-DD', 'danger')
+                return redirect(url_for('admin_assignments', lop=lop_nhan))
+
+        try:
+            new_assignment = BaiTap(
+                tieu_de=tieu_de,
+                noi_dung=noi_dung,
+                lop_nhan=lop_nhan,
+                ma_mh=ma_mh,
+                ma_gv=current_user.username,
+                han_nop=han_nop,
+                tep_dinh_kem=tep_dinh_kem
+            )
+            db.session.add(new_assignment)
+            db.session.commit()
+            flash('Đã giao bài tập cho sinh viên.', 'success')
+            return redirect(url_for('admin_assignments', lop=lop_nhan))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi tạo bài tập: {e}', 'danger')
+            return redirect(url_for('admin_assignments'))
+
+    assignments_query = BaiTap.query
+    if not show_all:
+        assignments_query = assignments_query.filter(BaiTap.ma_gv == current_user.username)
+    if selected_lop:
+        assignments_query = assignments_query.filter(BaiTap.lop_nhan == selected_lop)
+
+    assignments = assignments_query.order_by(
+        case((BaiTap.han_nop == None, 1), else_=0),
+        BaiTap.han_nop.asc(),
+        BaiTap.created_at.desc()
+    ).all()
+
+    return render_template(
+        'admin_assignments.html',
+        danh_sach_mon_hoc=danh_sach_mon_hoc,
+        danh_sach_lop=danh_sach_lop,
+        assignments=assignments,
+        selected_lop=selected_lop,
+        show_all=show_all,
+        today=date.today()
+    )
+
+
+@app.route('/admin/assignments/<int:assignment_id>/delete', methods=['POST'])
+@login_required
+@role_required(VaiTroEnum.GIAOVIEN)
+def admin_delete_assignment(assignment_id):
+    assignment = BaiTap.query.get_or_404(assignment_id)
+    if assignment.ma_gv and assignment.ma_gv != current_user.username:
+        abort(403)
+    try:
+        db.session.delete(assignment)
+        db.session.commit()
+        flash('Đã xóa bài tập.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi xóa bài tập: {e}', 'danger')
+    return redirect(request.referrer or url_for('admin_assignments'))
+
+
+@app.route('/admin/progress')
+@login_required
+@role_required(VaiTroEnum.GIAOVIEN)
+def admin_progress():
+    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+    selected_lop = request.args.get('lop')
+
+    students_query = SinhVien.query
+    if selected_lop:
+        students_query = students_query.filter(SinhVien.lop == selected_lop)
+    students = students_query.order_by(SinhVien.lop, SinhVien.ma_sv).all()
+
+    progress_map = {}
+    for sv in students:
+        progress_map[sv.ma_sv] = {
+            'ma_sv': sv.ma_sv,
+            'ho_ten': sv.ho_ten,
+            'lop': sv.lop,
+            'completed_courses': 0,
+            'in_progress': 0,
+            'completed_credits': 0,
+            'points_10': 0,
+            'points_4': 0
+        }
+
+    total_required_credits = sum(mh.so_tin_chi for mh in MonHoc.query.all())
+
+    grade_rows = db.session.query(
+        KetQua.ma_sv,
+        MonHoc.so_tin_chi,
+        KetQua.diem_tong_ket,
+        KetQua.diem_chuyen_can,
+        KetQua.diem_giua_ky,
+        KetQua.diem_cuoi_ky
+    ).join(MonHoc, KetQua.ma_mh == MonHoc.ma_mh)
+
+    if selected_lop:
+        grade_rows = grade_rows.join(SinhVien, KetQua.ma_sv == SinhVien.ma_sv).filter(SinhVien.lop == selected_lop)
+
+    grade_rows = grade_rows.all()
+
+    for row in grade_rows:
+        entry = progress_map.get(row.ma_sv)
+        if not entry:
+            continue
+        if row.diem_tong_ket is not None:
+            entry['completed_courses'] += 1
+            entry['completed_credits'] += row.so_tin_chi
+            entry['points_10'] += row.diem_tong_ket * row.so_tin_chi
+            entry['points_4'] += convert_10_to_4_scale(row.diem_tong_ket) * row.so_tin_chi
+        elif any([row.diem_chuyen_can, row.diem_giua_ky, row.diem_cuoi_ky]):
+            entry['in_progress'] += 1
+
+    progress_rows = []
+    completion_rates = []
+    gpa_values = []
+    for entry in progress_map.values():
+        completed_credits = entry['completed_credits']
+        gpa_10 = entry['points_10'] / completed_credits if completed_credits > 0 else None
+        gpa_4 = entry['points_4'] / completed_credits if completed_credits > 0 else None
+        completion_pct = (completed_credits / total_required_credits * 100) if total_required_credits > 0 else 0
+
+        progress_rows.append({
+            **entry,
+            'gpa_10': gpa_10,
+            'gpa_4': gpa_4,
+            'completion_pct': completion_pct
+        })
+        completion_rates.append(completion_pct)
+        if gpa_10 is not None:
+            gpa_values.append(gpa_10)
+
+    progress_rows.sort(key=lambda x: (x['lop'] or '', x['ma_sv']))
+
+    avg_completion = sum(completion_rates) / len(completion_rates) if completion_rates else 0
+    avg_gpa = sum(gpa_values) / len(gpa_values) if gpa_values else None
+
+    return render_template(
+        'admin_progress.html',
+        progress_rows=progress_rows,
+        danh_sach_lop=danh_sach_lop,
+        selected_lop=selected_lop,
+        avg_completion=avg_completion,
+        avg_gpa=avg_gpa
     )
 
 @app.route('/admin/teachers')

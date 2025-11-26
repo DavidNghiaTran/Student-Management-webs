@@ -1,0 +1,113 @@
+{% extends "_layout.html" %}
+
+{% block title %}Giao bài tập{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">Giao bài tập cho sinh viên</div>
+    <div class="card-body">
+        <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+            <div>
+                <label>Tiêu đề *</label>
+                <input type="text" name="tieu_de" required placeholder="Ví dụ: Bài 2 - CTDL" />
+            </div>
+            <div>
+                <label>Lớp nhận *</label>
+                <select name="lop_nhan" required>
+                    <option value="">-- Chọn lớp --</option>
+                    {% for lop in danh_sach_lop %}
+                        <option value="{{ lop }}">{{ lop }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Môn học</label>
+                <select name="ma_mh">
+                    <option value="">-- Không chọn --</option>
+                    {% for mh in danh_sach_mon_hoc %}
+                        <option value="{{ mh.ma_mh }}">{{ mh.ma_mh }} - {{ mh.ten_mh }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Hạn nộp</label>
+                <input type="date" name="han_nop" />
+            </div>
+            <div>
+                <label>File/Link đính kèm</label>
+                <input type="text" name="tep_dinh_kem" placeholder="https://..." />
+            </div>
+            <div style="grid-column:1/-1;">
+                <label>Nội dung *</label>
+                <textarea name="noi_dung" rows="3" required placeholder="Mô tả bài tập, yêu cầu nộp..."></textarea>
+            </div>
+            <div style="grid-column:1/-1;text-align:right;">
+                <button type="submit" class="btn btn-primary">Giao bài tập</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Danh sách bài tập đã giao</span>
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            <label for="lop">Lọc lớp:</label>
+            <select name="lop" id="lop" onchange="this.form.submit()">
+                <option value="">Tất cả</option>
+                {% for lop in danh_sach_lop %}
+                    <option value="{{ lop }}" {% if selected_lop == lop %}selected{% endif %}>{{ lop }}</option>
+                {% endfor %}
+            </select>
+            <label style="display:flex;align-items:center;gap:4px;">
+                <input type="checkbox" name="all" value="1" {% if show_all %}checked{% endif %} onchange="this.form.submit()" />
+                Xem của tất cả GV
+            </label>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if not assignments %}
+            <p>Chưa có bài tập nào.</p>
+        {% else %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Lớp</th>
+                        <th>Môn</th>
+                        <th>Hạn nộp</th>
+                        <th>GV giao</th>
+                        <th>Nội dung</th>
+                        <th>Tệp/Link</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in assignments %}
+                        <tr>
+                            <td>{{ a.tieu_de }}</td>
+                            <td>{{ a.lop_nhan }}</td>
+                            <td>{{ a.mon_hoc.ten_mh if a.mon_hoc else (a.ma_mh or '-') }}</td>
+                            <td>{{ a.han_nop and a.han_nop.strftime('%d/%m/%Y') or '-' }}</td>
+                            <td>{{ a.ma_gv }}</td>
+                            <td style="max-width:260px;">{{ a.noi_dung }}</td>
+                            <td>
+                                {% if a.tep_dinh_kem %}
+                                    <a href="{{ a.tep_dinh_kem }}" target="_blank" rel="noopener">Tài liệu</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post" action="{{ url_for('admin_delete_assignment', assignment_id=a.id) }}" onsubmit="return confirm('Xóa bài tập này?');">
+                                    <button type="submit" class="btn btn-danger btn-sm">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
