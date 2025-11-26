@@ -50,8 +50,10 @@ def convert_10_to_4_scale(diem_10):
         return 0.0  # F
 
 import enum
+import math
 import pandas as pd
 import io
+import unicodedata
 from flask import send_file
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -370,6 +372,171 @@ def apply_schema_patches():
     ensure_teacher_profile_columns()
     _TEACHER_SCHEMA_PATCHED = True
 
+def strip_accents(value):
+    """Remove Vietnamese accents to make weekday parsing more tolerant."""
+    if not value:
+        return ''
+    return ''.join(
+        ch for ch in unicodedata.normalize('NFD', value)
+        if unicodedata.category(ch) != 'Mn'
+    )
+
+def parse_time_to_minutes(time_str):
+    """Convert HH:MM string (or variants) to minutes from 00:00."""
+    if not time_str:
+        return None
+    try:
+        cleaned = time_str.lower().replace('h', ':').replace('.', ':')
+        parts = cleaned.split(':')
+        hour = int(parts[0].strip()) if parts[0].strip() else 0
+        minute = int(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else 0
+        return hour * 60 + minute
+    except (ValueError, AttributeError, IndexError):
+        return None
+
+def format_minutes(total_minutes):
+    hours = int(total_minutes // 60)
+    minutes = int(total_minutes % 60)
+    return f"{hours:02d}:{minutes:02d}"
+
+def resolve_day_for_item(item, day_defs, day_lookup):
+    """Return (day_index, label) for a LichHoc item based on ngay_hoc or thu_trong_tuan."""
+    if item.ngay_hoc:
+        idx = min(item.ngay_hoc.weekday(), 6)
+        label = f"{day_defs[idx]['label']} ({item.ngay_hoc.strftime('%d/%m')})"
+        return idx, label
+
+    raw_day = (item.thu_trong_tuan or '').strip()
+    if not raw_day:
+        return None, 'Chưa rõ'
+
+    normalized = strip_accents(raw_day).lower()
+    normalized = normalized.replace('thu', 'thu ')
+    normalized = ' '.join(normalized.split())
+
+    for key, idx in day_lookup.items():
+        if key in normalized:
+            return idx, day_defs[idx]['label']
+
+    digits = ''.join(ch for ch in normalized if ch.isdigit())
+    if digits:
+        try:
+            num = int(digits)
+            if num == 8:
+                return 6, day_defs[6]['label']
+            if 2 <= num <= 7:
+                idx = num - 2
+                return idx, day_defs[idx]['label']
+        except ValueError:
+            pass
+
+    return None, raw_day
+
+def build_week_view(schedule_items):
+    """Prepare week-view friendly data (by weekday, with time offsets) for templates."""
+    day_defs = [
+        {"key": "mon", "label": "Thứ 2", "short": "T2"},
+        {"key": "tue", "label": "Thứ 3", "short": "T3"},
+        {"key": "wed", "label": "Thứ 4", "short": "T4"},
+        {"key": "thu", "label": "Thứ 5", "short": "T5"},
+        {"key": "fri", "label": "Thứ 6", "short": "T6"},
+        {"key": "sat", "label": "Thứ 7", "short": "T7"},
+        {"key": "sun", "label": "Chủ nhật", "short": "CN"},
+    ]
+    day_lookup = {
+        'thu 2': 0, 'thu2': 0, 't2': 0, 'thu hai': 0,
+        'thu 3': 1, 'thu3': 1, 't3': 1, 'thu ba': 1,
+        'thu 4': 2, 'thu4': 2, 't4': 2, 'thu tu': 2,
+        'thu 5': 3, 'thu5': 3, 't5': 3, 'thu nam': 3,
+        'thu 6': 4, 'thu6': 4, 't6': 4, 'thu sau': 4,
+        'thu 7': 5, 'thu7': 5, 't7': 5, 'thu bay': 5,
+        'chu nhat': 6, 'chunhat': 6, 'cn': 6,
+    }
+
+    events_by_day = {d['key']: [] for d in day_defs}
+    day_dates = {d['key']: None for d in day_defs}
+    extras = []
+    min_start = 7 * 60
+    max_end = 17 * 60
+
+    for item in schedule_items:
+        start_min = parse_time_to_minutes(item.gio_bat_dau) or min_start
+        end_min = parse_time_to_minutes(item.gio_ket_thuc)
+        if end_min is None or end_min <= start_min:
+            end_min = start_min + 90
+
+        min_start = min(min_start, start_min)
+        max_end = max(max_end, end_min)
+
+        day_idx, day_label = resolve_day_for_item(item, day_defs, day_lookup)
+
+        teacher_account = getattr(item, 'giao_vien', None)
+        teacher_profile = getattr(teacher_account, 'giao_vien', None) if teacher_account else None
+        teacher_name = None
+        if teacher_profile and getattr(teacher_profile, 'ho_ten', None):
+            teacher_name = teacher_profile.ho_ten
+        elif teacher_account and getattr(teacher_account, 'username', None):
+            teacher_name = teacher_account.username
+        else:
+            teacher_name = item.ma_gv
+
+        event_data = {
+            'id': item.id,
+            'title': item.tieu_de,
+            'class': item.lop,
+            'group': getattr(item, 'nhom', None),
+            'subject': item.mon_hoc.ten_mh if getattr(item, 'mon_hoc', None) else item.ma_mh,
+            'room': item.phong,
+            'teacher': teacher_name,
+            'note': item.ghi_chu,
+            'start_time': item.gio_bat_dau,
+            'end_time': item.gio_ket_thuc,
+            'start_min': start_min,
+            'end_min': end_min,
+            'time_label': f"{item.gio_bat_dau or '?'} - {item.gio_ket_thuc or '?'}",
+        }
+
+        if day_idx is None:
+            extras.append(event_data)
+            continue
+
+        day_key = day_defs[day_idx]['key']
+        if item.ngay_hoc and not day_dates[day_key]:
+            day_dates[day_key] = item.ngay_hoc.strftime('%d/%m')
+
+        event_data['day_label'] = day_label or day_defs[day_idx]['label']
+        events_by_day[day_key].append(event_data)
+
+    scale_start = 7 * 60  # 07:00
+    scale_end = 18 * 60   # 18:00
+    if min_start < scale_start:
+        scale_start = int(math.floor(min_start / 60) * 60)
+    if max_end > scale_end:
+        scale_end = int(math.ceil(max_end / 60) * 60)
+    range_minutes = max(scale_end - scale_start, 60)
+    time_slots = list(range(scale_start, scale_end + 1, 60))
+
+    for day_key, events in events_by_day.items():
+        events.sort(key=lambda ev: (ev['start_min'], ev['end_min']))
+        for ev in events:
+            duration = max(ev['end_min'] - ev['start_min'], 45)
+            offset = max(ev['start_min'] - scale_start, 0)
+            ev['top_pct'] = round(offset / range_minutes * 100, 3)
+            ev['height_pct'] = round(duration / range_minutes * 100, 3)
+            ev['time_label'] = f"{ev['start_time'] or '?'} - {ev['end_time'] or '?'}"
+
+    weekly_data = {
+        'days': day_defs,
+        'events_by_day': events_by_day,
+        'time_slots': [{'label': format_minutes(slot), 'value': slot} for slot in time_slots],
+        'scale_start': scale_start,
+        'scale_end': scale_end,
+        'extra_events': extras,
+        'day_dates': day_dates,
+    }
+    weekly_data['has_events'] = any(events_by_day[d['key']] for d in day_defs) or bool(extras)
+    return weekly_data
+
 def role_required(vai_tro_enum):
     def decorator(f):
         @wraps(f)
@@ -615,16 +782,13 @@ def student_schedule():
             LichHoc.id.desc()
         ).all()
 
-    schedule_by_day = {}
-    for item in schedule_items:
-        key = item.ngay_hoc.strftime('%d/%m/%Y') if item.ngay_hoc else (item.thu_trong_tuan or 'Khác')
-        schedule_by_day.setdefault(key, []).append(item)
+    week_view = build_week_view(schedule_items)
 
     return render_template(
         'student_schedule.html',
         sv=sv,
         schedule_items=schedule_items,
-        schedule_by_day=schedule_by_day
+        week_view=week_view
     )
 
 
@@ -855,12 +1019,15 @@ def admin_schedule():
         LichHoc.id.desc()
     ).all()
 
+    week_view = build_week_view(schedule_items)
+
     return render_template(
         'admin_schedule.html',
         danh_sach_mon_hoc=danh_sach_mon_hoc,
         danh_sach_lop=danh_sach_lop,
         schedule_items=schedule_items,
-        selected_lop=selected_lop
+        selected_lop=selected_lop,
+        week_view=week_view
     )
 
 
@@ -1696,7 +1863,7 @@ def admin_reports_index():
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_report_high_gpa():
-    GPA_THRESHOLD = 8.0
+    GPA4_THRESHOLD = 3.0
     gpa_10_expression = calculate_gpa_expression()
     gpa_4_expression = calculate_gpa_4_expression()
 
@@ -1710,17 +1877,29 @@ def admin_report_high_gpa():
     ).group_by(
         SinhVien.ma_sv, SinhVien.ho_ten, SinhVien.lop
     ).having(
-        gpa_10_expression > GPA_THRESHOLD
+        gpa_4_expression > GPA4_THRESHOLD
     ).order_by(
-        gpa_10_expression.desc()
+        gpa_4_expression.desc()
     ).all()
 
-    # Tính toán cho biểu đồ
+    def classify_gpa_4(gpa4):
+        if gpa4 is None:
+            return "Yếu"
+        if gpa4 >= 3.6:
+            return "Xuất sắc"
+        elif gpa4 >= 3.2:
+            return "Giỏi"
+        elif gpa4 >= 2.5:
+            return "Khá"
+        elif gpa4 >= 2.0:
+            return "Trung bình"
+        else:
+            return "Yếu"
+
     category_counts = {"Yếu": 0, "Trung bình": 0, "Khá": 0, "Giỏi": 0, "Xuất sắc": 0}
     for row in results:
-        # Quan trọng: Cần kiểm tra row.gpa có phải là None không
-        if row.gpa is not None:
-             category = classify_gpa_10(row.gpa)
+        if row.gpa_4 is not None:
+             category = classify_gpa_4(row.gpa_4)
              if category in category_counts:
                  category_counts[category] += 1
     chart_labels = list(category_counts.keys())
@@ -1729,7 +1908,7 @@ def admin_report_high_gpa():
     return render_template(
         'admin_report_high_gpa.html',
         results=results,
-        threshold=GPA_THRESHOLD,
+        threshold=GPA4_THRESHOLD,
         chart_labels=chart_labels,
         chart_data=chart_data
     )

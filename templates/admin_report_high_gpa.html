@@ -1,12 +1,12 @@
 {% extends "_layout.html" %}
 
-{% block title %}Báo cáo: GPA > {{ threshold }}{% endblock %}
+{% block title %}Báo cáo: GPA hệ 4 > {{ threshold }}{% endblock %}
 
 {% block content %}
     <div class="card">
         <div class="card-header">
             <a href="{{ url_for('admin_reports_index') }}" style="text-decoration: none; color: var(--primary-color); float: right; font-size: 0.9em;">&laquo; Quay lại Danh sách Báo cáo</a>
-            Báo cáo 1: Danh sách sinh viên có GPA (hệ 10) > {{ threshold }}
+            Báo cáo: Danh sách sinh viên có GPA (hệ 4) > {{ threshold }}
         </div>
         <div class="card-body">
             
@@ -17,8 +17,8 @@
                         <th>Mã SV</th>
                         <th>Họ tên</th>
                         <th>Lớp</th>
-                        <th>GPA (Hệ 10)</th>
-                        <th>GPA (Hệ 4)</th> 
+                        <th>GPA (Hệ 4)</th>
+                        <th>GPA (Hệ 10)</th> 
                     </tr>
                 </thead>
                 <tbody>
@@ -28,12 +28,12 @@
                         <td>{{ row.ma_sv }}</td>
                         <td>{{ row.ho_ten }}</td>
                         <td>{{ row.lop }}</td>
-                        <td><strong>{{ "%.2f"|format(row.gpa) }}</strong></td>
-                        <td><strong>{{ "%.2f"|format(row.gpa_4) }}</strong></td> 
+                        <td><strong>{{ "%.2f"|format(row.gpa_4) }}</strong></td>
+                        <td><strong>{{ "%.2f"|format(row.gpa) }}</strong></td> 
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6">Không tìm thấy sinh viên nào có GPA > {{ threshold }}.</td>
+                        <td colspan="6">Không tìm thấy sinh viên nào có GPA (hệ 4) > {{ threshold }}.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

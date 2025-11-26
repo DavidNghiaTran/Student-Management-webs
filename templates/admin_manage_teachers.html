@@ -5,11 +5,12 @@
 {% block styles %}
 <style>
     .teacher-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
-        border: 1px solid rgba(255,255,255,0.08);
-        box-shadow: 0 30px 60px rgba(8,15,40,0.35);
+        background: #ffffff;
+        border: 1.5px solid var(--border-color);
+        box-shadow: 0 12px 30px rgba(17,24,39,0.12);
         border-radius: 28px;
         padding: 32px;
+        color: var(--text-color);
     }
     .teacher-header {
         display: flex;
@@ -31,11 +32,11 @@
     .teacher-header h2 {
         margin: 0;
         font-size: 1.8rem;
-        color: #fefefe;
+        color: var(--primary-dark);
     }
     .teacher-header p {
         margin: 0;
-        color: rgba(255,255,255,0.7);
+        color: var(--muted-text);
     }
     .teacher-count {
         display: inline-flex;
@@ -43,10 +44,11 @@
         gap: 8px;
         padding: 10px 18px;
         border-radius: 999px;
-        background: rgba(99,102,241,0.2);
-        color: #e0e7ff;
+        background: rgba(183,28,28,0.08);
+        color: var(--primary-dark);
         font-weight: 600;
         letter-spacing: 0.04em;
+        border: 1px solid rgba(183,28,28,0.25);
     }
     .teacher-manager-grid {
         display: grid;
@@ -55,30 +57,32 @@
         align-items: stretch;
     }
     .teacher-panel {
-        background: rgba(255,255,255,0.08);
+        background: #ffffff;
         border-radius: 24px;
         padding: 22px 24px 26px;
-        border: 1px solid rgba(255,255,255,0.08);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        border: 1px solid rgba(183,28,28,0.25);
+        box-shadow: 0 8px 18px rgba(17,24,39,0.08);
+        color: var(--text-color);
     }
     .teacher-panel h3 {
         margin-bottom: 12px;
         font-size: 1.1rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #f1f5ff;
+        color: var(--primary-dark);
     }
     .teacher-table-wrapper {
         border-radius: 20px;
-        border: 1px solid rgba(255,255,255,0.15);
-        background: linear-gradient(180deg, rgba(15,23,42,0.85), rgba(15,23,42,0.65));
+        border: 1px solid rgba(183,28,28,0.25);
+        background: #ffffff;
         max-height: 420px;
         overflow: auto;
+        box-shadow: 0 10px 22px rgba(17,24,39,0.08);
     }
     .teacher-table {
         width: 100%;
         border-collapse: collapse;
-        color: #f8fafc;
+        color: var(--text-color);
         font-size: 0.95rem;
     }
     .teacher-table th {
@@ -86,21 +90,21 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
         padding: 14px 18px;
-        background: rgba(148,163,255,0.08);
-        color: #c7d2fe;
+        background: var(--primary-color);
+        color: #ffffff;
         position: sticky;
         top: 0;
         z-index: 1;
     }
     .teacher-table td {
         padding: 14px 18px;
-        border-top: 1px solid rgba(255,255,255,0.06);
+        border-top: 1px solid #f0f0f0;
     }
     .teacher-table tbody tr:nth-child(even) {
-        background: rgba(255,255,255,0.02);
+        background: #fafafa;
     }
     .teacher-table tbody tr:hover {
-        background: rgba(59,130,246,0.16);
+        background: rgba(183,28,28,0.08);
     }
     .teacher-actions {
         display: flex;
@@ -118,21 +122,22 @@
         border: none;
         border-radius: 16px;
         padding: 12px 14px;
-        background: rgba(79,70,229,0.15);
-        color: #e0e7ff;
+        background: linear-gradient(120deg, var(--primary-color), var(--primary-light));
+        color: #ffffff;
         font-weight: 600;
         cursor: pointer;
-        transition: transform 0.2s ease, background 0.2s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 10px;
         text-decoration: none;
+        box-shadow: 0 10px 20px rgba(183,28,28,0.2);
     }
     .teacher-actions .action-buttons button:hover,
     .teacher-actions .action-buttons a:hover {
         transform: translateY(-2px);
-        background: rgba(99,102,241,0.3);
+        box-shadow: 0 12px 24px rgba(183,28,28,0.26);
     }
     .collapsible-panel {
         display: none;
@@ -148,26 +153,26 @@
         font-size: 0.85rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: rgba(255,255,255,0.75);
+        color: var(--muted-text);
     }
     .teacher-form input,
     .teacher-form select {
         border-radius: 16px;
         padding: 12px 16px;
-        background: rgba(15,23,42,0.85);
-        border: 1px solid rgba(255,255,255,0.12);
-        color: #f8fafc;
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+        color: var(--text-color);
         transition: border-color 0.2s, box-shadow 0.2s;
         width: 100%;
     }
     .teacher-form input:focus,
     .teacher-form select:focus {
-        border-color: rgba(99,102,241,0.7);
-        box-shadow: 0 0 0 4px rgba(79,70,229,0.25);
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 4px rgba(183,28,28,0.16);
         outline: none;
     }
     .teacher-form small {
-        color: rgba(255,255,255,0.65);
+        color: var(--muted-text);
         margin-bottom: 10px;
         display: block;
         font-size: 0.9rem;
@@ -212,22 +217,22 @@
         margin: 0;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #f8fafc;
+        color: var(--primary-dark);
         font-size: 1.05rem;
     }
     .teacher-self-header p {
         margin: 4px 0 0;
-        color: rgba(248,250,252,0.7);
+        color: var(--muted-text);
         font-size: 0.95rem;
     }
     .teacher-self-header .link-profile {
         padding: 12px 20px;
         border-radius: 999px;
-        background: linear-gradient(120deg, #38bdf8, #6366f1);
-        color: #0f172a;
+        background: linear-gradient(120deg, var(--primary-color), var(--primary-light));
+        color: #ffffff;
         font-weight: 600;
         text-decoration: none;
-        box-shadow: 0 12px 25px rgba(14,165,233,0.35);
+        box-shadow: 0 12px 25px rgba(183,28,28,0.22);
     }
     .teacher-info-section + .teacher-info-section {
         margin-top: 26px;
@@ -237,7 +242,7 @@
         letter-spacing: 0.08em;
         font-size: 0.9rem;
         margin-bottom: 14px;
-        color: rgba(248,250,252,0.65);
+        color: var(--primary-dark);
     }
     .teacher-info-grid {
         display: grid;
@@ -247,15 +252,16 @@
     .teacher-info-card {
         padding: 16px 18px;
         border-radius: 18px;
-        background: rgba(15,23,42,0.65);
-        border: 1px solid rgba(255,255,255,0.08);
+        background: #ffffff;
+        border: 1px solid rgba(183,28,28,0.25);
         min-height: 120px;
+        box-shadow: 0 8px 18px rgba(17,24,39,0.08);
     }
     .teacher-info-card span.label {
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: rgba(248,250,252,0.55);
+        color: var(--muted-text);
         display: block;
         margin-bottom: 6px;
     }
@@ -263,7 +269,7 @@
         margin: 0;
         font-size: 1rem;
         font-weight: 600;
-        color: #f8fafc;
+        color: var(--text-color);
         word-break: break-word;
     }
     .teacher-avatar-block {
@@ -277,8 +283,8 @@
         height: 120px;
         border-radius: 20px;
         object-fit: cover;
-        border: 2px solid rgba(255,255,255,0.2);
-        background: rgba(15,23,42,0.6);
+        border: 2px solid rgba(183,28,28,0.25);
+        background: #ffffff;
     }
     .teacher-avatar-info {
         flex: 1;

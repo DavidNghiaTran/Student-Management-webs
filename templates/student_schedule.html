@@ -3,53 +3,120 @@
 {% block title %}Lịch học{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Lịch học - Lớp {{ sv.lop or 'N/A' }}</span>
-        <small style="color: var(--muted-text);">Mã SV: {{ sv.ma_sv if sv else 'N/A' }}</small>
+<h1>Thời khóa biểu</h1>
+
+<div class="card schedule-card">
+    <div class="card-header schedule-header">
+        <div>
+            <p class="eyebrow-text">THỜI KHÓA BIỂU DẠNG TUẦN</p>
+            <h3 class="schedule-title">Lớp {{ sv.lop or 'N/A' }}</h3>
+        </div>
+        <div class="schedule-actions">
+            <span class="chip muted">Mã SV: {{ sv.ma_sv if sv else 'N/A' }}</span>
+            <div class="week-controls">
+                <button type="button" class="btn btn-secondary btn-icon" aria-label="Tuần trước">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div class="week-label">Tuần hiện tại</div>
+                <button type="button" class="btn btn-secondary btn-icon" aria-label="Tuần sau">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <button type="button" class="btn btn-secondary btn-icon" aria-label="In thời khóa biểu">
+                    <i class="fa-solid fa-print"></i>
+                </button>
+            </div>
+        </div>
     </div>
     <div class="card-body">
-        {% if not schedule_items %}
-            <p>Hiện chưa có lịch học nào cho lớp của bạn.</p>
+        {% if not week_view.has_events %}
+            <div class="empty-state">
+                <p>Chưa có lịch học nào cho lớp {{ sv.lop or 'N/A' }}.</p>
+                <p class="helper-text">Khi giảng viên thêm lịch, thời khóa biểu dạng tuần sẽ tự cập nhật tại đây.</p>
+            </div>
         {% else %}
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tiêu đề</th>
-                        <th>Môn học</th>
-                        <th>Ngày/Thứ</th>
-                        <th>Thời gian</th>
-                        <th>Phòng</th>
-                        <th>Ghi chú</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in schedule_items %}
-                        <tr>
-                            <td>{{ item.tieu_de }}</td>
-                            <td>{{ item.mon_hoc.ten_mh if item.mon_hoc else (item.ma_mh or '-') }}</td>
-                            <td>
-                                {% if item.ngay_hoc %}
-                                    {{ item.ngay_hoc.strftime('%d/%m/%Y') }}
-                                {% elif item.thu_trong_tuan %}
-                                    {{ item.thu_trong_tuan }}
-                                {% else %}
-                                    -
+            <div class="schedule-wrapper">
+                <div class="week-grid" style="--slot-count: {{ (week_view.time_slots|length) - 1 }};">
+                    <div class="week-grid-header">
+                        <div class="time-head">Thời gian</div>
+                        {% for day in week_view.days %}
+                            <div class="day-head">
+                                <span class="day-name">{{ day.label }}</span>
+                                <span class="day-date">{{ week_view.day_dates[day.key] or '---' }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="week-grid-body">
+                        <div class="time-col">
+                            {% for slot in week_view.time_slots %}
+                                {% if not loop.last %}
+                                    <div class="time-cell">{{ slot.label }}</div>
                                 {% endif %}
-                            </td>
-                            <td>
-                                {% if item.gio_bat_dau or item.gio_ket_thuc %}
-                                    {{ item.gio_bat_dau or '?' }} - {{ item.gio_ket_thuc or '?' }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>{{ item.phong or '-' }}</td>
-                            <td>{{ item.ghi_chu or '-' }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            {% endfor %}
+                        </div>
+                        {% for day in week_view.days %}
+                            <div class="day-col">
+                                <div class="hour-grid">
+                                    {% for slot in week_view.time_slots %}
+                                        {% if not loop.last %}
+                                            <div class="hour-row"></div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% for event in week_view.events_by_day[day.key] %}
+                                    {% set title_text = event.title or '' %}
+                                    {% set suffix = title_text.split('(')[-1] if '(' in title_text else '' %}
+                                    <div class="event-block" style="top: {{ event.top_pct }}%; height: {{ event.height_pct }}%; min-height: 120px;">
+                                        <div class="event-title">
+                                            {{ event.subject or title_text }}{% if suffix %} ({{ suffix }}){% endif %}
+                                        </div>
+        
+                                        <div class="event-meta">
+            {% if event.group %}
+                <span><strong>Nhom:</strong> {{ event.group }}</span>
+            {% else %}
+                <span><strong>Nhom:</strong> --</span>
+            {% endif %}
+
+            {% if event.room %}
+                <span><strong>Phong:</strong> {{ event.room }}</span>
+            {% endif %}
+
+            {% if event.teacher %}
+                <span><strong>GV:</strong> {{ event.teacher }}</span>
+            {% endif %}
+
+            <span style="margin-top: 4px; font-size: 0.8rem; color: #555;">
+                <i class="fa-regular fa-clock"></i> {{ event.time_label }}
+            </span>
+        </div>
+
+        {% if event.note %}
+            <div class="event-note" style="margin-top: 4px; font-style: italic; font-size: 0.8rem;">
+                {{ event.note }}
+            </div>
+        {% endif %}
+    </div>
+{% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% if week_view.extra_events %}
+                <div class="schedule-extra">
+                    <div class="extra-title"><i class="fa-solid fa-circle-question"></i> Buổi chưa rõ thứ</div>
+                    <div class="extra-grid">
+                        {% for event in week_view.extra_events %}
+                            <div class="extra-item">
+                                <div class="event-title">{{ event.subject or event.title }}</div>
+                                <div class="event-time">{{ event.time_label }}</div>
+                                <div class="event-meta">
+                                    {% if event.room %}<span><i class="fa-solid fa-location-dot"></i> {{ event.room }}</span>{% endif %}
+                                    {% if event.class %}<span><i class="fa-solid fa-layer-group"></i> {{ event.class }}</span>{% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         {% endif %}
     </div>
 </div>

@@ -3,13 +3,15 @@
 {% block title %}Lịch giảng dạy{% endblock %}
 
 {% block content %}
+<h1>Lịch giảng dạy</h1>
+
 <div class="card">
     <div class="card-header">Thêm buổi học/giảng dạy</div>
     <div class="card-body">
-        <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        <form method="post" class="form-grid two">
             <div>
                 <label>Tiêu đề</label>
-                <input type="text" name="tieu_de" placeholder="VD: Toán rời rạc" />
+                <input type="text" name="tieu_de" placeholder="VD: Cấu trúc dữ liệu" />
             </div>
             <div>
                 <label>Lớp</label>
@@ -62,7 +64,7 @@
                 <label>Ghi chú</label>
                 <textarea name="ghi_chu" rows="2" placeholder="Nội dung thêm..."></textarea>
             </div>
-            <div style="grid-column:1/-1; text-align:right;">
+            <div class="form-actions" style="grid-column:1/-1; justify-content: flex-end;">
                 <button type="submit" class="btn btn-primary">Lưu lịch</button>
             </div>
         </form>
@@ -70,9 +72,9 @@
 </div>
 
 <div class="card">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Danh sách lịch</span>
-        <form method="get" style="display:flex;gap:8px;align-items:center;">
+    <div class="card-header schedule-header">
+        <span>Thời khóa biểu dạng tuần</span>
+        <form method="get" class="schedule-filter">
             <label for="lop">Lọc lớp:</label>
             <select name="lop" id="lop" onchange="this.form.submit()">
                 <option value="">Tất cả</option>
@@ -83,55 +85,136 @@
         </form>
     </div>
     <div class="card-body">
-        {% if not schedule_items %}
-            <p>Chưa có lịch nào.</p>
+        {% if not week_view.has_events %}
+            <div class="empty-state">
+                <p>Chưa có lịch {{ 'của lớp ' ~ selected_lop if selected_lop else '' }}.</p>
+                <p class="helper-text">Thêm lịch mới để hiển thị dạng tuần.</p>
+            </div>
         {% else %}
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tiêu đề</th>
-                        <th>Lớp</th>
-                        <th>Môn</th>
-                        <th>Ngày/Thứ</th>
-                        <th>Thời gian</th>
-                        <th>Phòng</th>
-                        <th>Ghi chú</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in schedule_items %}
-                        <tr>
-                            <td>{{ item.tieu_de }}</td>
-                            <td>{{ item.lop }}</td>
-                            <td>{{ item.mon_hoc.ten_mh if item.mon_hoc else (item.ma_mh or '-') }}</td>
-                            <td>
-                                {% if item.ngay_hoc %}
-                                    {{ item.ngay_hoc.strftime('%d/%m/%Y') }}
-                                {% elif item.thu_trong_tuan %}
-                                    {{ item.thu_trong_tuan }}
-                                {% else %}
-                                    -
+            <div class="schedule-wrapper">
+                <div class="week-grid" style="--slot-count: {{ (week_view.time_slots|length) - 1 }};">
+                    <div class="week-grid-header">
+                        <div class="time-head">Thời gian</div>
+                        {% for day in week_view.days %}
+                            <div class="day-head">
+                                <span class="day-name">{{ day.label }}</span>
+                                <span class="day-date">{{ week_view.day_dates[day.key] or '---' }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="week-grid-body">
+                        <div class="time-col">
+                            {% for slot in week_view.time_slots %}
+                                {% if not loop.last %}
+                                    <div class="time-cell">{{ slot.label }}</div>
                                 {% endif %}
-                            </td>
-                            <td>
-                                {% if item.gio_bat_dau or item.gio_ket_thuc %}
-                                    {{ item.gio_bat_dau or '?' }} - {{ item.gio_ket_thuc or '?' }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>{{ item.phong or '-' }}</td>
-                            <td>{{ item.ghi_chu or '-' }}</td>
-                            <td>
-                                <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=item.id) }}" onsubmit="return confirm('Xóa lịch này?');">
-                                    <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
+                            {% endfor %}
+                        </div>
+                        {% for day in week_view.days %}
+                            <div class="day-col">
+                                <div class="hour-grid">
+                                    {% for slot in week_view.time_slots %}
+                                        {% if not loop.last %}
+                                            <div class="hour-row"></div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% for event in week_view.events_by_day[day.key] %}
+                                    <div class="event-block admin-event" style="top: {{ event.top_pct }}%; height: {{ event.height_pct }}%;">
+                                        <div class="event-title">{{ event.subject or event.title }}</div>
+                                        <div class="event-meta stacked">
+                                            {% if event.class %}<span><strong>Lớp:</strong> {{ event.class }}</span>{% endif %}
+                                            {% if event.group %}<span><strong>Nhóm:</strong> {{ event.group }}</span>{% endif %}
+                                            {% if event.room %}<span><strong>Phòng:</strong> {{ event.room }}</span>{% endif %}
+                                            {% if event.teacher %}<span><strong>GV:</strong> {{ event.teacher }}</span>{% endif %}
+                                            <span><i class="fa-regular fa-clock"></i> {{ event.time_label }}</span>
+                                        </div>
+                                        {% if event.note %}<div class="event-note">{{ event.note }}</div>{% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% if week_view.extra_events %}
+                <div class="schedule-extra">
+                    <div class="extra-title"><i class="fa-solid fa-circle-question"></i> Buổi chưa rõ thứ</div>
+                    <div class="extra-grid">
+                        {% for event in week_view.extra_events %}
+                            <div class="extra-item">
+                                <div class="event-title">{{ event.subject or event.title }}</div>
+                                <div class="event-time">{{ event.time_label }}</div>
+                                <div class="event-meta">
+                                    {% if event.room %}<span><i class="fa-solid fa-location-dot"></i> {{ event.room }}</span>{% endif %}
+                                    {% if event.class %}<span><i class="fa-solid fa-layer-group"></i> {{ event.class }}</span>{% endif %}
+                                </div>
+                                <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=event.id) }}" onsubmit="return confirm('Xóa lịch này?');">
+                                    <button type="submit" class="btn btn-secondary btn-icon danger"><i class="fa-solid fa-trash"></i></button>
                                 </form>
-                            </td>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Danh sách lịch (dạng bảng)</div>
+    <div class="card-body">
+        {% if not schedule_items %}
+            <div class="empty-state">Chưa có lịch nào.</div>
+        {% else %}
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Tiêu đề</th>
+                            <th>Lớp</th>
+                            <th>Môn</th>
+                            <th>Ngày/Thứ</th>
+                            <th>Thời gian</th>
+                            <th>Phòng</th>
+                            <th>Ghi chú</th>
+                            <th></th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for item in schedule_items %}
+                            <tr>
+                                <td>{{ item.tieu_de }}</td>
+                                <td>{{ item.lop }}</td>
+                                <td>{{ item.mon_hoc.ten_mh if item.mon_hoc else (item.ma_mh or '-') }}</td>
+                                <td>
+                                    {% if item.ngay_hoc %}
+                                        {{ item.ngay_hoc.strftime('%d/%m/%Y') }}
+                                    {% elif item.thu_trong_tuan %}
+                                        {{ item.thu_trong_tuan }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.gio_bat_dau or item.gio_ket_thuc %}
+                                        {{ item.gio_bat_dau or '?' }} - {{ item.gio_ket_thuc or '?' }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.phong or '-' }}</td>
+                                <td>{{ item.ghi_chu or '-' }}</td>
+                                <td>
+                                    <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=item.id) }}" onsubmit="return confirm('Xóa lịch này?');">
+                                        <button class="btn btn-secondary btn-sm danger" type="submit">Xóa</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% endif %}
     </div>
 </div>
