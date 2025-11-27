@@ -7,7 +7,7 @@
 
     <form method="POST" action="{{ url_for('admin_add_course') }}">
         <p>
-            <label>Mã Môn học:</label>
+            <label>Ma Môn học:</label>
             <input type="text" name="ma_mh" required>
         </p>
         <p>
@@ -22,6 +22,24 @@
             <label>Số tín chỉ:</label>
             <input type="number" name="so_tin_chi" min="1" required>
         </p>
+        <p><strong>Tỷ lệ các đầu điểm (tổng = 100%)</strong></p>
+        <p>
+            <label>Chuyên cần (%):</label>
+            <input type="number" name="ty_le_cc" value="20" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Thực hành (%):</label>
+            <input type="number" name="ty_le_th" value="0" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Giữa kỳ (%):</label>
+            <input type="number" name="ty_le_gk" value="20" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Cuối kỳ (%):</label>
+            <input type="number" name="ty_le_ck" value="60" min="0" max="100" step="any" required>
+        </p>
+        <p class="helper-text accent" style="margin-top: -6px;">Có thể đặt 0% cho đầu điểm không áp dụng. Tổng 4 ô phải bằng 100%.</p>
         <p>
             <input type="submit" value="Thêm mới">
         </p>

@@ -13,16 +13,17 @@
             <ul style="margin-top: 10px; padding-left: 20px; line-height: 1.6;">
                 <li>File phải có định dạng <code>.xlsx</code> hoặc <code>.xls</code>.</li>
                 <li>
-                    <strong>Phải chứa chính xác 4 cột</strong> với tiêu đề (viết thường, không dấu):
+                    <strong>Phải chứa chính xác 5 cột</strong> với tiêu đề (viết thường, không dấu):
                     <ul>
                         <li><code>ma_sinh_vien</code> (Chứa Mã sinh viên)</li>
                         <li><code>diem_chuyen_can</code> (Điểm chuyên cần - thang 10)</li>
                         <li><code>diem_giua_ky</code> (Điểm giữa kỳ - thang 10)</li>
+                        <li><code>diem_thuc_hanh</code> (Điểm thực hành - thang 10)</li>
                         <li><code>diem_cuoi_ky</code> (Điểm cuối kỳ - thang 10)</li>
                     </ul>
                 </li>
                  <li>Điểm phải là số từ 0 đến 10. Ô điểm trống hoặc sai định dạng sẽ được coi là chưa có điểm (None) cho thành phần đó.</li>
-                 <li>Điểm tổng kết (hệ 10) và điểm chữ sẽ được tự động tính nếu cả 3 điểm thành phần hợp lệ được nhập.</li>
+                 <li>Điểm tổng kết (hệ 10) và điểm chữ sẽ được tự động tính theo tỷ lệ của môn khi đủ các cột có trọng số > 0.</li>
                  <li>Mã sinh viên không tồn tại trong hệ thống sẽ bị bỏ qua.</li>
             </ul>
         </div>

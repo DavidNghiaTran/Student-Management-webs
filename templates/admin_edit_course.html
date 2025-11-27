@@ -8,7 +8,7 @@
 
     <form method="POST" action="{{ url_for('admin_edit_course', ma_mh=course.ma_mh) }}">
         <p>
-            <label>Mã Môn học:</label>
+            <label>Ma Môn học:</label>
             <input type="text" name="ma_mh" value="{{ course.ma_mh }}" disabled>
         </p>
         <p>
@@ -23,8 +23,26 @@
             <label>Số tín chỉ:</label>
             <input type="number" name="so_tin_chi" value="{{ course.so_tin_chi }}" min="1" required>
         </p>
+        <p><strong>Tỷ lệ các đầu điểm (tổng = 100%)</strong></p>
         <p>
-            <input type="submit" value="Lưu thay đổi">
+            <label>Chuyên cần (%):</label>
+            <input type="number" name="ty_le_cc" value="{{ course.ty_le_chuyen_can }}" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Thực hành (%):</label>
+            <input type="number" name="ty_le_th" value="{{ course.ty_le_thuc_hanh }}" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Giữa kỳ (%):</label>
+            <input type="number" name="ty_le_gk" value="{{ course.ty_le_giua_ky }}" min="0" max="100" step="any" required>
+        </p>
+        <p>
+            <label>Cuối kỳ (%):</label>
+            <input type="number" name="ty_le_ck" value="{{ course.ty_le_cuoi_ky }}" min="0" max="100" step="any" required>
+        </p>
+        <p class="helper-text accent" style="margin-top: -6px;">Điều chỉnh các tỷ lệ sao cho tổng bằng 100%. Các đầu điểm không dùng có thể đặt 0%.</p>
+        <p>
+            <input type="submit" value="Luu thay đổi">
         </p>
     </form>
     

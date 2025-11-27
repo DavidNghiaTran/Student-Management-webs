@@ -7,13 +7,16 @@
     <a href="{{ url_for('admin_add_course') }}">Thêm Môn học mới</a>
 
     ...
-    <table class="data-table"> <thead>
+    <table class="data-table">
+        <thead>
             <tr>
-                <th>Mã Môn học</th>
+                <th>Ma Môn học</th>
                 <th>Tên Môn học</th>
                 <th style="width: 80px; text-align: center;">Học kỳ</th>
                 <th style="width: 80px; text-align: center;">Số tín chỉ</th>
-                <th style="width: 150px;">Hành động</th> </tr>
+                <th style="width: 190px; text-align: center;">Tỷ lệ điểm (CC/TH/GK/CK)</th>
+                <th style="width: 150px;">Hành động</th>
+            </tr>
         </thead>
         <tbody>
             {% for course in courses %}
@@ -22,7 +25,9 @@
                 <td>{{ course.ten_mh }}</td>
                 <td style="text-align: center;">{{ course.hoc_ky }}</td>
                 <td style="text-align: center;">{{ course.so_tin_chi }}</td>
-                
+                <td style="text-align: center;">
+                    {{ course.ty_le_chuyen_can|round(2) }}% / {{ course.ty_le_thuc_hanh|round(2) }}% / {{ course.ty_le_giua_ky|round(2) }}% / {{ course.ty_le_cuoi_ky|round(2) }}%
+                </td>
                 <td class="action-buttons">
                     <a href="{{ url_for('admin_edit_course', ma_mh=course.ma_mh) }}" class="btn btn-edit">Sửa</a>
                     
@@ -34,7 +39,7 @@
                 </tr>
             {% else %}
             <tr>
-                <td colspan="4">Chưa có môn học nào.</td>
+                <td colspan="6">Chưa có môn học nào.</td>
             </tr>
             {% endfor %}
         </tbody>

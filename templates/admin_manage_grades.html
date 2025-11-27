@@ -50,6 +50,7 @@
                      <i class="fa-solid fa-pen-to-square"></i> Sửa điểm lớp này
                  </a>
             </div>
+            <p class="helper-text" style="margin: 4px 0 14px 0;">Tỷ lệ: CC {{ selected_mon_hoc.ty_le_chuyen_can }}% | TH {{ selected_mon_hoc.ty_le_thuc_hanh }}% | GK {{ selected_mon_hoc.ty_le_giua_ky }}% | CK {{ selected_mon_hoc.ty_le_cuoi_ky }}%</p>
 
             <table class="data-table">
                 <thead>
@@ -58,6 +59,7 @@
                         <th>Mã SV</th>
                         <th>Họ tên</th>
                         <th style="text-align: center;">Điểm CC</th>
+                        <th style="text-align: center;">Điểm TH</th>
                         <th style="text-align: center;">Điểm GK</th>
                         <th style="text-align: center;">Điểm CK</th>
                         <th style="text-align: center;">Điểm TK (10)</th>
@@ -71,6 +73,7 @@
                         <td>{{ grade_row.ma_sv }}</td>
                         <td>{{ grade_row.ho_ten }}</td>
                         <td style="text-align: center;">{{ grade_row.diem_chuyen_can if grade_row.diem_chuyen_can is not none else '-' }}</td>
+                        <td style="text-align: center;">{{ grade_row.diem_thuc_hanh if grade_row.diem_thuc_hanh is not none else '-' }}</td>
                         <td style="text-align: center;">{{ grade_row.diem_giua_ky if grade_row.diem_giua_ky is not none else '-' }}</td>
                         <td style="text-align: center;">{{ grade_row.diem_cuoi_ky if grade_row.diem_cuoi_ky is not none else '-' }}</td>
                         <td style="text-align: center; font-weight: bold;">
@@ -82,7 +85,7 @@
                     </tr>
                     {% else %}
                      <tr>
-                         <td colspan="8">Chưa có dữ liệu điểm cho lớp và môn học này.</td>
+                         <td colspan="9">Chưa có dữ liệu điểm cho lớp và môn học này.</td>
                      </tr>
                     {% endfor %}
                 </tbody>

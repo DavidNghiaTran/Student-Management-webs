@@ -150,12 +150,55 @@ def ensure_teacher_profile_columns():
 
     db.session.commit()
 
+def ensure_course_weight_columns():
+    """Ensure MonHoc weight columns and KetQua practice score column exist."""
+    try:
+        inspector = sa_inspect(db.engine)
+    except Exception:
+        return
+
+    statements = []
+
+    try:
+        mh_columns = {col['name'] for col in inspector.get_columns('mon_hoc')}
+    except NoSuchTableError:
+        mh_columns = set()
+
+    try:
+        kq_columns = {col['name'] for col in inspector.get_columns('ket_qua')}
+    except NoSuchTableError:
+        kq_columns = set()
+
+    def add_if_missing(col_set, column_name, ddl):
+        if column_name not in col_set:
+            statements.append(ddl)
+
+    add_if_missing(mh_columns, 'ty_le_chuyen_can', "ALTER TABLE mon_hoc ADD COLUMN ty_le_chuyen_can FLOAT NOT NULL DEFAULT 20")
+    add_if_missing(mh_columns, 'ty_le_thuc_hanh', "ALTER TABLE mon_hoc ADD COLUMN ty_le_thuc_hanh FLOAT NOT NULL DEFAULT 0")
+    add_if_missing(mh_columns, 'ty_le_giua_ky', "ALTER TABLE mon_hoc ADD COLUMN ty_le_giua_ky FLOAT NOT NULL DEFAULT 20")
+    add_if_missing(mh_columns, 'ty_le_cuoi_ky', "ALTER TABLE mon_hoc ADD COLUMN ty_le_cuoi_ky FLOAT NOT NULL DEFAULT 60")
+    add_if_missing(kq_columns, 'diem_thuc_hanh', "ALTER TABLE ket_qua ADD COLUMN diem_thuc_hanh FLOAT")
+
+    if not statements:
+        return
+
+    for ddl in statements:
+        try:
+            db.session.execute(text(ddl))
+        except Exception as exc:
+            db.session.rollback()
+            print(f"[Schema update] Could not apply '{ddl}': {exc}")
+            return
+
+    db.session.commit()
+
 
 def initialize_database():
     """Ensure tables exist on cold start (needed for serverless/Vercel)."""
     with app.app_context():
         db.create_all()
         ensure_teacher_profile_columns()
+        ensure_course_weight_columns()
 
 
 initialize_database()
@@ -245,6 +288,10 @@ class MonHoc(db.Model):
     ma_mh = db.Column(db.String(50), primary_key=True)
     ten_mh = db.Column(db.String(100), nullable=False)
     so_tin_chi = db.Column(db.Integer, nullable=False)
+    ty_le_chuyen_can = db.Column(db.Float, nullable=False, default=20)
+    ty_le_thuc_hanh = db.Column(db.Float, nullable=False, default=0)
+    ty_le_giua_ky = db.Column(db.Float, nullable=False, default=20)
+    ty_le_cuoi_ky = db.Column(db.Float, nullable=False, default=60)
     
     # === THÊM CỘT MỚI ===
     # Thêm cột học kỳ. 
@@ -262,6 +309,7 @@ class KetQua(db.Model):
 
     # Điểm thành phần (nullable=True cho phép nhập từ từ)
     diem_chuyen_can = db.Column(db.Float, nullable=True) # 20%
+    diem_thuc_hanh = db.Column(db.Float, nullable=True)
     diem_giua_ky = db.Column(db.Float, nullable=True)    # 20%
     diem_cuoi_ky = db.Column(db.Float, nullable=True)     # 60%
 
@@ -269,29 +317,54 @@ class KetQua(db.Model):
     diem_tong_ket = db.Column(db.Float, nullable=True) # Hệ 10
     diem_chu = db.Column(db.String(2), nullable=True)   # A, B+, B, C+, C, D+, D, F
 
-    # Hàm tính điểm tổng kết và điểm chữ (có thể gọi khi lưu)
-    def calculate_final_score(self):
-        # Chỉ tính khi cả 3 điểm thành phần đều đã được nhập (không phải None)
-        if self.diem_chuyen_can is not None and \
-           self.diem_giua_ky is not None and \
-           self.diem_cuoi_ky is not None:
-            # Tính điểm hệ 10
-            final_score_10 = round(
-                (self.diem_chuyen_can * 0.2) +
-                (self.diem_giua_ky * 0.2) +
-                (self.diem_cuoi_ky * 0.6),
-                2 # Làm tròn 2 chữ số thập phân
-            )
-            self.diem_tong_ket = final_score_10
-            # Tính điểm chữ từ điểm hệ 10
-            self.diem_chu = convert_10_to_letter(final_score_10)
+    # Ham tinh diem tong ket va diem chu dua tren 4 thanh phan
+    def calculate_final_score(self, mon_hoc=None):
+        course = mon_hoc or getattr(self, 'mon_hoc', None) or MonHoc.query.get(self.ma_mh)
+        default_weights = {'cc': 20.0, 'th': 0.0, 'gk': 20.0, 'ck': 60.0}
+
+        if course:
+            weights = {
+                'cc': course.ty_le_chuyen_can or 0,
+                'th': course.ty_le_thuc_hanh or 0,
+                'gk': course.ty_le_giua_ky or 0,
+                'ck': course.ty_le_cuoi_ky or 0
+            }
         else:
-            # Nếu chưa đủ điểm, đặt là None
+            weights = default_weights
+
+        total_weight = sum(weights.values())
+        if total_weight <= 0:
             self.diem_tong_ket = None
             self.diem_chu = None
+            return
 
-# === THÊM HÀM HELPER CHUYỂN ĐIỂM CHỮ ===
-# Đặt gần các hàm helper khác ở đầu file index.py
+        components = {
+            'cc': self.diem_chuyen_can,
+            'th': self.diem_thuc_hanh,
+            'gk': self.diem_giua_ky,
+            'ck': self.diem_cuoi_ky
+        }
+
+        missing_required = [
+            name for name, weight in weights.items()
+            if weight > 0 and components.get(name) is None
+        ]
+        if missing_required:
+            self.diem_tong_ket = None
+            self.diem_chu = None
+            return
+
+        final_score_10 = round(
+            (
+                (components.get('cc') or 0) * weights['cc'] +
+                (components.get('th') or 0) * weights['th'] +
+                (components.get('gk') or 0) * weights['gk'] +
+                (components.get('ck') or 0) * weights['ck']
+            ) / total_weight,
+            2
+        )
+        self.diem_tong_ket = final_score_10
+        self.diem_chu = convert_10_to_letter(final_score_10)
 def convert_10_to_letter(diem_10):
     """Chuyển điểm 10 sang điểm chữ."""
     if diem_10 is None:
@@ -370,6 +443,7 @@ def apply_schema_patches():
     # Đảm bảo các bảng mới (lịch học, bài tập, ...) được tạo khi khởi động
     db.create_all()
     ensure_teacher_profile_columns()
+    ensure_course_weight_columns()
     _TEACHER_SCHEMA_PATCHED = True
 
 def strip_accents(value):
@@ -679,10 +753,15 @@ def student_grades():
         MonHoc.so_tin_chi,
         MonHoc.hoc_ky, # Lấy thông tin học kỳ
         KetQua.diem_chuyen_can,
+        KetQua.diem_thuc_hanh,
         KetQua.diem_giua_ky,
         KetQua.diem_cuoi_ky,
         KetQua.diem_tong_ket,
-        KetQua.diem_chu
+        KetQua.diem_chu,
+        MonHoc.ty_le_chuyen_can,
+        MonHoc.ty_le_thuc_hanh,
+        MonHoc.ty_le_giua_ky,
+        MonHoc.ty_le_cuoi_ky
     ).select_from(MonHoc).join(
         KetQua, and_(MonHoc.ma_mh == KetQua.ma_mh, KetQua.ma_sv == ma_sv), isouter=True
     ).order_by(MonHoc.hoc_ky, MonHoc.ma_mh).all() # Sắp xếp theo học kỳ
@@ -739,10 +818,17 @@ def student_grades():
             'ten_mh': row.ten_mh,
             'so_tin_chi': row.so_tin_chi,
             'diem_cc': row.diem_chuyen_can,
+            'diem_th': row.diem_thuc_hanh,
             'diem_gk': row.diem_giua_ky,
             'diem_ck': row.diem_cuoi_ky,
             'diem_tk': diem_tk,
-            'diem_chu': diem_chu
+            'diem_chu': diem_chu,
+            'ty_le': {
+                'cc': row.ty_le_chuyen_can,
+                'th': row.ty_le_thuc_hanh,
+                'gk': row.ty_le_giua_ky,
+                'ck': row.ty_le_cuoi_ky
+            }
         })
 
     # Tính toán GPA (Hệ 10 và Hệ 4) cho TỪNG học kỳ
@@ -839,14 +925,22 @@ def student_progress():
 
     for mh in mon_hoc_list:
         kq = ket_qua_dict.get(mh.ma_mh)
+        weights = {
+            'cc': mh.ty_le_chuyen_can or 0,
+            'th': mh.ty_le_thuc_hanh or 0,
+            'gk': mh.ty_le_giua_ky or 0,
+            'ck': mh.ty_le_cuoi_ky or 0
+        }
         component_progress = 0
         if kq:
             if kq.diem_chuyen_can is not None:
-                component_progress += 20
+                component_progress += weights['cc']
+            if kq.diem_thuc_hanh is not None:
+                component_progress += weights['th']
             if kq.diem_giua_ky is not None:
-                component_progress += 20
+                component_progress += weights['gk']
             if kq.diem_cuoi_ky is not None:
-                component_progress += 60
+                component_progress += weights['ck']
 
         status = 'Chưa bắt đầu'
         diem_tong_ket = None
@@ -1171,6 +1265,7 @@ def admin_progress():
         MonHoc.so_tin_chi,
         KetQua.diem_tong_ket,
         KetQua.diem_chuyen_can,
+        KetQua.diem_thuc_hanh,
         KetQua.diem_giua_ky,
         KetQua.diem_cuoi_ky
     ).join(MonHoc, KetQua.ma_mh == MonHoc.ma_mh)
@@ -1189,7 +1284,7 @@ def admin_progress():
             entry['completed_credits'] += row.so_tin_chi
             entry['points_10'] += row.diem_tong_ket * row.so_tin_chi
             entry['points_4'] += convert_10_to_4_scale(row.diem_tong_ket) * row.so_tin_chi
-        elif any([row.diem_chuyen_can, row.diem_giua_ky, row.diem_cuoi_ky]):
+        elif any([row.diem_chuyen_can, row.diem_thuc_hanh, row.diem_giua_ky, row.diem_cuoi_ky]):
             entry['in_progress'] += 1
 
     progress_rows = []
@@ -1533,8 +1628,11 @@ def admin_add_course():
         ma_mh = request.form.get('ma_mh')
         ten_mh = request.form.get('ten_mh')
         so_tin_chi = request.form.get('so_tin_chi')
-        # Lấy dữ liệu học kỳ
-        hoc_ky = request.form.get('hoc_ky') 
+        hoc_ky = request.form.get('hoc_ky')
+        ty_le_cc = request.form.get('ty_le_cc', 0)
+        ty_le_th = request.form.get('ty_le_th', 0)
+        ty_le_gk = request.form.get('ty_le_gk', 0)
+        ty_le_ck = request.form.get('ty_le_ck', 0)
 
         existing = MonHoc.query.get(ma_mh)
         if existing:
@@ -1542,12 +1640,23 @@ def admin_add_course():
             return redirect(url_for('admin_add_course'))
 
         try:
+            weights = [float(ty_le_cc or 0), float(ty_le_th or 0), float(ty_le_gk or 0), float(ty_le_ck or 0)]
+            if any(w < 0 for w in weights):
+                flash('Lỗi: Tỉ lệ các đầu điểm phải >= 0.', 'danger')
+                return redirect(url_for('admin_add_course'))
+            if abs(sum(weights) - 100) > 0.001:
+                flash('Tổng tỉ lệ 4 đầu điểm phải bằng 100%.', 'danger')
+                return redirect(url_for('admin_add_course'))
+
             new_course = MonHoc(
                 ma_mh=ma_mh,
                 ten_mh=ten_mh,
                 so_tin_chi=int(so_tin_chi),
-                # Thêm học kỳ vào
-                hoc_ky=int(hoc_ky) 
+                hoc_ky=int(hoc_ky),
+                ty_le_chuyen_can=weights[0],
+                ty_le_thuc_hanh=weights[1],
+                ty_le_giua_ky=weights[2],
+                ty_le_cuoi_ky=weights[3]
             )
             db.session.add(new_course)
             db.session.commit()
@@ -1570,11 +1679,41 @@ def admin_edit_course(ma_mh):
         try:
             course.ten_mh = request.form.get('ten_mh')
             course.so_tin_chi = int(request.form.get('so_tin_chi'))
-            # Cập nhật học kỳ
-            course.hoc_ky = int(request.form.get('hoc_ky')) 
-            
+            course.hoc_ky = int(request.form.get('hoc_ky'))
+
+            weights = [
+                float(request.form.get('ty_le_cc', course.ty_le_chuyen_can) or 0),
+                float(request.form.get('ty_le_th', course.ty_le_thuc_hanh) or 0),
+                float(request.form.get('ty_le_gk', course.ty_le_giua_ky) or 0),
+                float(request.form.get('ty_le_ck', course.ty_le_cuoi_ky) or 0),
+            ]
+            if any(w < 0 for w in weights):
+                flash('Lỗi: Tỉ lệ các đầu điểm phải >= 0.', 'danger')
+                return redirect(url_for('admin_edit_course', ma_mh=ma_mh))
+            if abs(sum(weights) - 100) > 0.001:
+                flash('Tổng tỉ lệ 4 đầu điểm phải bằng 100%.', 'danger')
+                return redirect(url_for('admin_edit_course', ma_mh=ma_mh))
+
+            old_weights = (
+                course.ty_le_chuyen_can,
+                course.ty_le_thuc_hanh,
+                course.ty_le_giua_ky,
+                course.ty_le_cuoi_ky,
+            )
+            course.ty_le_chuyen_can, course.ty_le_thuc_hanh, course.ty_le_giua_ky, course.ty_le_cuoi_ky = weights
+
+            db.session.flush()
+            recalc_count = 0
+            if old_weights != tuple(weights):
+                for grade in KetQua.query.filter_by(ma_mh=course.ma_mh).all():
+                    grade.calculate_final_score(mon_hoc=course)
+                    recalc_count += 1
+
             db.session.commit()
-            flash('Cập nhật môn học thành công!', 'success')
+            message = 'Cập nhật môn học thành công!'
+            if recalc_count:
+                message += f' Đã tính lại điểm cho {recalc_count} bản ghi.'
+            flash(message, 'success')
             return redirect(url_for('admin_manage_courses'))
 
         except Exception as e:
@@ -1624,6 +1763,7 @@ def admin_manage_grades():
                 SinhVien.ma_sv,
                 SinhVien.ho_ten,
                 KetQua.diem_chuyen_can,
+                KetQua.diem_thuc_hanh,
                 KetQua.diem_giua_ky,
                 KetQua.diem_cuoi_ky,
                 KetQua.diem_tong_ket,
@@ -1665,6 +1805,7 @@ def admin_enter_grades(lop, ma_mh):
     diem_hien_co_dict = {
         kq.ma_sv: {
             'cc': kq.diem_chuyen_can,
+            'th': kq.diem_thuc_hanh,
             'gk': kq.diem_giua_ky,
             'ck': kq.diem_cuoi_ky,
             'tk': kq.diem_tong_ket, # Để hiển thị nếu đã tính
@@ -1679,6 +1820,7 @@ def admin_enter_grades(lop, ma_mh):
             'ma_sv': sv.ma_sv,
             'ho_ten': sv.ho_ten,
             'diem_cc': scores.get('cc'),
+            'diem_th': scores.get('th'),
             'diem_gk': scores.get('gk'),
             'diem_ck': scores.get('ck'),
             'diem_tk': scores.get('tk'),
@@ -1702,34 +1844,42 @@ def admin_save_grades():
         updated_count = 0
         created_count = 0
 
-        # Dữ liệu form sẽ có dạng: diem_cc_MaSV, diem_gk_MaSV, diem_ck_MaSV
+        # Dữ liệu form sẽ có dạng: diem_cc_MaSV, diem_th_MaSV, diem_gk_MaSV, diem_ck_MaSV
         scores_by_sv = {} # Gom điểm của từng SV vào dict
+
+        def parse_score(raw_value):
+            """Chuyển chuỗi điểm nhập (hỗ trợ dấu phẩy) sang float, rỗng trả None."""
+            if raw_value is None:
+                return None
+            cleaned = str(raw_value).strip()
+            if not cleaned:
+                return None
+            cleaned = cleaned.replace(',', '.')
+            return float(cleaned)
 
         # 1. Gom điểm từ form vào dict
         for key, value in request.form.items():
             if key.startswith('diem_'):
                 parts = key.split('_')
                 if len(parts) == 3: # Phải có dạng diem_type_MaSV
-                    score_type = parts[1] # cc, gk, ck
+                    score_type = parts[1] # cc, th, gk, ck
                     ma_sv = parts[2]
 
                     if ma_sv not in scores_by_sv:
-                        scores_by_sv[ma_sv] = {'cc': None, 'gk': None, 'ck': None}
+                        scores_by_sv[ma_sv] = {'cc': None, 'th': None, 'gk': None, 'ck': None}
 
-                    # === PHẦN SỬA LỖI QUAN TRỌNG ===
                     try:
-                        # Chỉ xử lý nếu 'value' (giá trị nhập vào) không rỗng
-                        if value.strip(): 
-                            score_float = float(value) # LẤY GIÁ TRỊ TỪ 'value', KHÔNG PHẢI 'key'
-                            if not (0 <= score_float <= 10):
-                                raise ValueError("Điểm không hợp lệ 0-10")
-                            
-                            if score_type in scores_by_sv[ma_sv]:
-                                 scores_by_sv[ma_sv][score_type] = score_float
-                        # Nếu value rỗng, nó sẽ giữ nguyên là None (đã khởi tạo)
+                        score_float = parse_score(value)
+                        if score_float is None:
+                            continue
+
+                        if not (0 <= score_float <= 10):
+                            raise ValueError("Điểm không hợp lệ 0-10")
+
+                        if score_type in scores_by_sv[ma_sv]:
+                            scores_by_sv[ma_sv][score_type] = score_float
                         
                     except (ValueError, TypeError):
-                        # Báo lỗi bằng 'value'
                         flash(f'Lỗi: Điểm "{value}" ({score_type}) của SV {ma_sv} không hợp lệ. Giá trị này sẽ bị bỏ qua.', 'warning')
                     # === KẾT THÚC SỬA LỖI ===
 
@@ -1754,6 +1904,8 @@ def admin_save_grades():
                 # Chỉ cập nhật nếu điểm mới (từ form) là một con số
                 if scores['cc'] is not None and existing_grade.diem_chuyen_can != scores['cc']:
                     existing_grade.diem_chuyen_can = scores['cc']; changed = True
+                if scores.get('th') is not None and existing_grade.diem_thuc_hanh != scores['th']:
+                    existing_grade.diem_thuc_hanh = scores['th']; changed = True
                 if scores['gk'] is not None and existing_grade.diem_giua_ky != scores['gk']:
                     existing_grade.diem_giua_ky = scores['gk']; changed = True
                 if scores['ck'] is not None and existing_grade.diem_cuoi_ky != scores['ck']:
@@ -1769,6 +1921,7 @@ def admin_save_grades():
                     ma_sv=ma_sv,
                     ma_mh=ma_mh,
                     diem_chuyen_can=scores['cc'],
+                    diem_thuc_hanh=scores.get('th'),
                     diem_giua_ky=scores['gk'],
                     diem_cuoi_ky=scores['ck']
                 )
@@ -2188,7 +2341,7 @@ def admin_import_grades():
             try:
                 df = pd.read_excel(file)
                 # Yêu cầu 4 cột: ma_sv và 3 điểm thành phần
-                required_columns = ['ma_sinh_vien', 'diem_chuyen_can', 'diem_giua_ky', 'diem_cuoi_ky']
+                required_columns = ['ma_sinh_vien', 'diem_chuyen_can', 'diem_thuc_hanh', 'diem_giua_ky', 'diem_cuoi_ky']
                 if not all(col in df.columns for col in required_columns):
                     flash(f'Lỗi: File Excel phải chứa các cột: {", ".join(required_columns)}', 'danger')
                     return redirect(request.url)
@@ -2202,9 +2355,9 @@ def admin_import_grades():
                     if not ma_sv: skipped_count += 1; continue
 
                     # Lấy và validate từng điểm thành phần
-                    diem_cc, diem_gk, diem_ck = None, None, None
+                    diem_cc, diem_th, diem_gk, diem_ck = None, None, None, None
                     valid_scores = True
-                    for col_name, score_var_name in [('diem_chuyen_can', 'diem_cc'), ('diem_giua_ky', 'diem_gk'), ('diem_cuoi_ky', 'diem_ck')]:
+                    for col_name, score_var_name in [('diem_chuyen_can', 'diem_cc'), ('diem_thuc_hanh', 'diem_th'), ('diem_giua_ky', 'diem_gk'), ('diem_cuoi_ky', 'diem_ck')]:
                         score_val = row.get(col_name, None)
                         temp_score = None
                         if pd.notna(score_val): # Chỉ xử lý nếu ô không trống
@@ -2214,6 +2367,7 @@ def admin_import_grades():
                                     raise ValueError("Điểm không hợp lệ")
                                 # Gán giá trị hợp lệ
                                 if score_var_name == 'diem_cc': diem_cc = temp_score
+                                elif score_var_name == 'diem_th': diem_th = temp_score
                                 elif score_var_name == 'diem_gk': diem_gk = temp_score
                                 elif score_var_name == 'diem_ck': diem_ck = temp_score
                             except (ValueError, TypeError):
@@ -2233,6 +2387,8 @@ def admin_import_grades():
                          changed = False
                          if diem_cc is not None and existing_grade.diem_chuyen_can != diem_cc:
                               existing_grade.diem_chuyen_can = diem_cc; changed=True
+                         if diem_th is not None and existing_grade.diem_thuc_hanh != diem_th:
+                              existing_grade.diem_thuc_hanh = diem_th; changed=True
                          if diem_gk is not None and existing_grade.diem_giua_ky != diem_gk:
                               existing_grade.diem_giua_ky = diem_gk; changed=True
                          if diem_ck is not None and existing_grade.diem_cuoi_ky != diem_ck:
@@ -2244,6 +2400,7 @@ def admin_import_grades():
                     else:
                         new_grade = KetQua(ma_sv=ma_sv, ma_mh=selected_mh,
                                            diem_chuyen_can=diem_cc,
+                                           diem_thuc_hanh=diem_th,
                                            diem_giua_ky=diem_gk,
                                            diem_cuoi_ky=diem_ck)
                         new_grade.calculate_final_score() # Tính điểm TK
@@ -2309,6 +2466,7 @@ def admin_perform_export():
             MonHoc.ten_mh,
             MonHoc.so_tin_chi,
             KetQua.diem_chuyen_can,
+            KetQua.diem_thuc_hanh,
             KetQua.diem_giua_ky,
             KetQua.diem_cuoi_ky,
             KetQua.diem_tong_ket,
@@ -2360,6 +2518,7 @@ def admin_perform_export():
                 'Tên Môn học': row.ten_mh,
                 'Số TC': row.so_tin_chi,
                 'Điểm CC': row.diem_chuyen_can,
+                'Điểm TH': getattr(row, 'diem_thuc_hanh', None),
                 'Điểm GK': row.diem_giua_ky,
                 'Điểm CK': row.diem_cuoi_ky,
                 'Điểm TK (10)': row.diem_tong_ket,
