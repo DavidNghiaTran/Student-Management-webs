@@ -8,10 +8,26 @@
     <div class="card-body">
 
         <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-            <a href="{{ url_for('admin_import_grades') }}" class="btn" style="background-color: #17a2b8;">
-                <i class="fa-solid fa-file-excel"></i> Nhập điểm từ File Excel
-            </a>
-            <p style="font-size: 0.9em; color: #555; margin-top: 8px;">Hoặc chọn Lớp/Môn để xem/sửa điểm thủ công bên dưới:</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                <a href="{{ url_for('admin_import_grades') }}" class="btn" style="background-color: #17a2b8;">
+                    <i class="fa-solid fa-file-excel"></i> Nhập điểm từ File Excel
+                </a>
+                {% set export_disabled = not (selected_lop and selected_mh_id) %}
+                <form method="POST" action="{{ url_for('admin_perform_export') }}" style="margin: 0;">
+                    <input type="hidden" name="lop" value="{{ selected_lop or '' }}">
+                    <input type="hidden" name="ma_mh" value="{{ selected_mh_id or '' }}">
+                    <button type="submit" class="btn" style="background-color: #28a745;" {% if export_disabled %}disabled{% endif %}>
+                        <i class="fa-solid fa-file-export"></i> Xuất điểm (Excel)
+                    </button>
+                </form>
+            </div>
+            <p style="font-size: 0.9em; color: #555; margin-top: 8px;">Chọn Lớp/Môn để xem, sửa và xuất file điểm trực tiếp trên trang này.</p>
+            {% if export_disabled %}
+                <p style="font-size: 0.85em; color: #888; margin-top: 4px;">Nút xuất Excel sẽ bật sau khi bạn chọn cả Lớp và Môn học bên dưới.</p>
+            {% endif %}
+            <p style="font-size: 0.85em; margin-top: 6px;">
+                <a href="{{ url_for('admin_export_grades') }}" style="color: #0d6efd; text-decoration: none;">Cần lọc nâng cao? Mở trang xuất điểm tổng hợp</a>
+            </p>
         </div>
 
         <p style="font-weight: 500;">Chọn Lớp và Môn học để xem điểm chi tiết:</p>
@@ -44,11 +60,20 @@
 
         {% if selected_lop and selected_mon_hoc %}
             <hr style="margin: 30px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                  <h3 style="margin-bottom: 10px;">Bảng điểm chi tiết - Lớp: {{ selected_lop }} - Môn: {{ selected_mon_hoc.ten_mh }}</h3>
-                 <a href="{{ url_for('admin_enter_grades', lop=selected_lop, ma_mh=selected_mh_id) }}" class="btn">
-                     <i class="fa-solid fa-pen-to-square"></i> Sửa điểm lớp này
-                 </a>
+                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                     <a href="{{ url_for('admin_enter_grades', lop=selected_lop, ma_mh=selected_mh_id) }}" class="btn">
+                         <i class="fa-solid fa-pen-to-square"></i> Sửa điểm lớp này
+                     </a>
+                     <form method="POST" action="{{ url_for('admin_perform_export') }}" style="margin: 0;">
+                         <input type="hidden" name="lop" value="{{ selected_lop }}">
+                         <input type="hidden" name="ma_mh" value="{{ selected_mh_id }}">
+                         <button type="submit" class="btn" style="background-color: #28a745;">
+                             <i class="fa-solid fa-file-export"></i> Xuất Excel (Lớp/Môn này)
+                         </button>
+                     </form>
+                 </div>
             </div>
             <p class="helper-text" style="margin: 4px 0 14px 0;">Tỷ lệ: CC {{ selected_mon_hoc.ty_le_chuyen_can }}% | TH {{ selected_mon_hoc.ty_le_thuc_hanh }}% | GK {{ selected_mon_hoc.ty_le_giua_ky }}% | CK {{ selected_mon_hoc.ty_le_cuoi_ky }}%</p>
 

@@ -3,35 +3,128 @@
 {% block title %}Báo cáo & Thống kê{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        Báo cáo & Thống kê
-    </div>
-    <div class="card-body">
-        <p>Chọn một báo cáo để xem:</p>
-        
-        <ul style="line-height: 2;">
-            <li>
-                <a href="{{ url_for('admin_report_high_gpa') }}">
-                    Báo cáo 1: Danh sách sinh viên có GPA (thang 4) > 3.0
-                </a>
-            </li>
-            <li>
-                <a href="{{ url_for('admin_report_missing_grade') }}">
-                    Báo cáo 2: Liệt kê sinh viên chưa thi một môn học
-                </a>
-            </li>
-            <li>
-                <a href="{{ url_for('admin_report_class_gpa') }}">
-                    Báo cáo 3: Thống kê điểm trung bình (GPA) theo Lớp
-                </a>
-            </li>
-            <li>
-                <a href="{{ url_for('admin_report_score_distribution') }}">
-                    Báo cáo 4: Biểu đồ phân bố điểm (Theo điểm chữ)
-                </a>
-                </li>
-        </ul>
-    </div>
+<style>
+    .report-hero {
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #fff5f5 0%, #fff 40%, #f5f7ff 100%);
+        border: 1px solid #f0e6e6;
+        border-radius: 14px;
+        margin-bottom: 18px;
+        box-shadow: 0 18px 35px rgba(0,0,0,0.04);
+    }
+    .report-hero h2 {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .report-hero p {
+        margin: 0;
+        color: #555;
+    }
+    .report-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 14px;
+    }
+    .report-card {
+        position: relative;
+        display: block;
+        padding: 16px 16px 18px 16px;
+        background: #fff;
+        border: 1px solid #f0f0f0;
+        border-radius: 12px;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.04);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .report-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 32px rgba(0,0,0,0.08);
+        border-color: var(--primary-color);
+    }
+    .report-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 18px;
+        margin-bottom: 10px;
+    }
+    .report-card h3 {
+        margin: 0 0 6px 0;
+        font-size: 16px;
+        color: #222;
+        line-height: 1.3;
+    }
+    .report-card p {
+        margin: 0;
+        color: #666;
+        font-size: 14px;
+        line-height: 1.45;
+    }
+    .report-cta {
+        margin-top: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--primary-color);
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .report-tips {
+        margin-top: 14px;
+        padding: 12px 14px;
+        background: #fff;
+        border: 1px dashed #e2e2e2;
+        border-radius: 10px;
+        color: #555;
+        font-size: 14px;
+    }
+</style>
+
+<div class="report-hero">
+    <h2><i class="fa-solid fa-chart-bar"></i> Báo cáo & Thống kê</h2>
+    <p>Chọn mẫu báo cáo phù hợp để xem nhanh số liệu hoặc tải xuống phân tích chi tiết.</p>
+</div>
+
+<div class="report-grid">
+    <a class="report-card" href="{{ url_for('admin_report_high_gpa') }}">
+        <div class="report-icon" style="background:#ff6b6b;"><i class="fa-solid fa-star"></i></div>
+        <h3>Danh sách sinh viên có GPA (thang 4) &gt; 3.0</h3>
+        <p>Lọc nhanh nhóm sinh viên học lực cao để khen thưởng hoặc gợi ý học bổng.</p>
+        <span class="report-cta">Xem báo cáo <i class="fa-solid fa-arrow-right"></i></span>
+    </a>
+
+    <a class="report-card" href="{{ url_for('admin_report_missing_grade') }}">
+        <div class="report-icon" style="background:#f59f00;"><i class="fa-solid fa-hourglass-half"></i></div>
+        <h3>Liệt kê sinh viên chưa thi một môn học</h3>
+        <p>Xác định nhanh các trường hợp thiếu điểm để nhắc lịch thi hoặc bổ sung dữ liệu.</p>
+        <span class="report-cta">Xem báo cáo <i class="fa-solid fa-arrow-right"></i></span>
+    </a>
+
+    <a class="report-card" href="{{ url_for('admin_report_class_gpa') }}">
+        <div class="report-icon" style="background:#339af0;"><i class="fa-solid fa-layer-group"></i></div>
+        <h3>Thống kê điểm trung bình (GPA) theo Lớp</h3>
+        <p>So sánh mặt bằng học lực giữa các lớp để điều phối giảng dạy hoặc cố vấn học tập.</p>
+        <span class="report-cta">Xem báo cáo <i class="fa-solid fa-arrow-right"></i></span>
+    </a>
+
+    <a class="report-card" href="{{ url_for('admin_report_score_distribution') }}">
+        <div class="report-icon" style="background:#845ef7;"><i class="fa-solid fa-chart-pie"></i></div>
+        <h3>Biểu đồ phân bố điểm (Theo điểm chữ)</h3>
+        <p>Quan sát phân bổ A/B/C để nhận diện độ khó môn học hoặc cần thiết kế lại đề.</p>
+        <span class="report-cta">Xem báo cáo <i class="fa-solid fa-arrow-right"></i></span>
+    </a>
+</div>
+
+<div class="report-tips">
+    <strong>Mẹo:</strong> Tải file Excel trong từng báo cáo nếu cần lọc hoặc tổng hợp sâu hơn; kết hợp bộ lọc lớp/môn trước khi xuất để giảm thời gian xử lý.
 </div>
 {% endblock %}

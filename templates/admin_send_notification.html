@@ -3,29 +3,86 @@
 {% block title %}Gửi Thông báo Lớp{% endblock %}
 
 {% block content %}
+<style>
+    .notify-hero {
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #fff5f5 0%, #fff 40%, #f5f7ff 100%);
+        border: 1px solid #f0e6e6;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 16px 28px rgba(0,0,0,0.05);
+    }
+    .notify-hero h2 { margin: 0 0 6px 0; font-size: 24px; color: var(--primary-color); }
+    .notify-hero p { margin: 0; color: #555; }
+    .notify-card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.04);
+    }
+    .notify-card label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #444;
+    }
+    .notify-card select,
+    .notify-card input[type="text"],
+    .notify-card textarea {
+        width: 100%;
+    }
+    .notify-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .notify-actions {
+        margin-top: 12px;
+    }
+    .helper-tip {
+        margin-top: 10px;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px dashed #dce1e7;
+        border-radius: 10px;
+        color: #555;
+        font-size: 14px;
+    }
+</style>
+
+<div class="notify-hero">
     <h2>Gửi Thông báo mới</h2>
     <p>Soạn và gửi thông báo đến một lớp học cụ thể.</p>
+</div>
 
+<div class="notify-card">
     <form method="POST" action="{{ url_for('admin_send_notification') }}">
-        <p>
-            <label for="lop_nhan">Gửi đến Lớp:</label>
-            <select name="lop_nhan" id="lop_nhan" required style="width: 320px;">
-                <option value="">-- Vui lòng chọn Lớp --</option>
-                {% for lop in danh_sach_lop %}
-                    <option value="{{ lop }}">{{ lop }}</option>
-                {% endfor %}
-            </select>
-        </p>
-        <p>
-            <label for="tieu_de">Tiêu đề:</label>
-            <input type="text" name="tieu_de" id="tieu_de" required style="width: 100%;">
-        </p>
-        <p>
-            <label for="noi_dung">Nội dung:</label>
-            <textarea name="noi_dung" id="noi_dung" rows="8" required style="width: 100%; padding: 10px; font-family: Arial, sans-serif; font-size: 14px; border: 1px solid #ccc; border-radius: 5px;"></textarea>
-        </p>
-        <p>
+        <div class="notify-grid">
+            <div>
+                <label for="lop_nhan">Gửi đến Lớp</label>
+                <select name="lop_nhan" id="lop_nhan" required>
+                    <option value="">-- Vui lòng chọn Lớp --</option>
+                    {% for lop in danh_sach_lop %}
+                        <option value="{{ lop }}">{{ lop }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="tieu_de">Tiêu đề</label>
+                <input type="text" name="tieu_de" id="tieu_de" required placeholder="Ví dụ: Thông báo lịch thi cuối kỳ">
+            </div>
+            <div>
+                <label for="noi_dung">Nội dung</label>
+                <textarea name="noi_dung" id="noi_dung" rows="8" required placeholder="Nhập thông tin chi tiết, thời gian, địa điểm..."></textarea>
+            </div>
+        </div>
+        <div class="notify-actions">
             <input type="submit" value="Gửi Thông báo">
-        </p>
+        </div>
     </form>
+    <div class="helper-tip">
+        <strong>Mẹo:</strong> Ghi rõ thời gian - địa điểm và đính kèm đầu mối liên hệ để sinh viên phản hồi nhanh.
+    </div>
+</div>
 {% endblock %}

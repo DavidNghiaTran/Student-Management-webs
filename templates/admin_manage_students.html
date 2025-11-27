@@ -3,154 +3,218 @@
 {% block title %}Quản lý Sinh viên{% endblock %}
 
 {% block content %}
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-        <h2>Quản lý Sinh viên</h2>
-        <a href="{{ url_for('admin_add_student') }}" style="text-decoration: none; padding: 10px 15px; background: #5cb85c; color: white; border-radius: 5px; height: fit-content;">Thêm Sinh viên mới</a>
-    </div>
+<style>
+    .student-hero {
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #fff5f5 0%, #fff 40%, #f5f7ff 100%);
+        border: 1px solid #f0e6e6;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 16px 28px rgba(0,0,0,0.05);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .student-hero h2 {
+        margin: 0;
+        font-size: 24px;
+        color: var(--primary-color);
+    }
+    .student-hero p { margin: 4px 0 0 0; color: #555; }
+    .student-hero-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .pill-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 30px;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        box-shadow: 0 12px 20px rgba(0,0,0,0.08);
+    }
+    .pill-primary { background: #0d6efd; }
+    .pill-success { background: #2fb344; }
+    .filter-card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 16px 18px 12px 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 22px rgba(0,0,0,0.04);
+    }
+    .filter-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .filter-head strong { color: #222; }
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+    }
+    .filter-grid label {
+        font-weight: 600;
+        font-size: 14px;
+        color: #444;
+        margin-bottom: 6px;
+    }
+    .filter-grid input,
+    .filter-grid select {
+        width: 100%;
+    }
+    .filter-actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .filter-actions input[type="submit"] {
+        background: #d32f2f;
+    }
+    .filter-actions a {
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .filter-actions .reset-link { color: #c2185b; }
+    .filter-actions .btn-export {
+        margin-left: auto;
+        background: #2fb344;
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 10px 18px rgba(47,179,68,0.22);
+    }
+    .data-table thead {
+        background: linear-gradient(90deg, #c62828 0%, #d32f2f 60%, #e53935 100%);
+        color: #fff;
+    }
+    .data-table th {
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-size: 13px;
+    }
+    .data-table td { vertical-align: middle; }
+    .data-table tr:nth-child(odd) { background: #fff; }
+    .data-table tr:nth-child(even) { background: #fafafa; }
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .action-buttons .btn {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-weight: 700;
+        letter-spacing: 0.1px;
+        box-shadow: 0 10px 16px rgba(0,0,0,0.08);
+    }
+</style>
 
-    <style>
-        .filter-form {
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            padding: 15px 20px 5px 20px;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
-        .filter-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        .filter-grid div {
-            display: flex;
-            flex-direction: column;
-        }
-        .filter-grid label {
-            font-weight: 500;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-        .filter-grid input, .filter-grid select {
-            width: 100%; /* Ghi đè style mặc định */
-        }
-        /* CẬP NHẬT CSS CHO KHỐI NÚT BẤM */
-        .filter-buttons {
-            margin-top: 15px;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-            display: flex; /* Dùng flexbox */
-            align-items: center;
-            gap: 10px; /* Khoảng cách giữa các nút */
-        }
-        .filter-buttons input[type="submit"] {
-            background-color: #0275d8;
-        }
-        .filter-buttons a {
-            text-decoration: none;
-            color: #d9534f;
-            margin-left: 0; /* Xóa margin cũ */
-        }
-        /* Nút Xuất Excel (đẩy về bên phải) */
-        .btn-export {
-            background: #5cb85c; 
-            color: white; 
-            margin-left: auto; /* Tự động đẩy về bên phải */
-            text-decoration: none;
-            padding: 10px 15px; /* Thêm padding cho giống nút */
-            border-radius: 5px;
-            font-size: 14px;
-        }
-    </style>
-    
-    <form class="filter-form" method="GET" action="{{ url_for('admin_manage_students') }}">
-        <div class="filter-grid">
-            <div>
-                <label for="ma_sv">Tìm theo Mã SV:</label>
-                <input type="text" name="ma_sv" id="ma_sv" value="{{ search_params.ma_sv }}">
-            </div>
-            <div>
-                <label for="ho_ten">Tìm theo Tên SV:</label>
-                <input type="text" name="ho_ten" id="ho_ten" value="{{ search_params.ho_ten }}">
-            </div>
-            <div>
-                <label for="lop">Lọc theo Lớp:</label>
-                <select name="lop" id="lop">
-                    <option value="">-- Tất cả Lớp --</option>
-                    {% for lop in danh_sach_lop %}
-                        <option value="{{ lop }}" {% if lop == search_params.lop %}selected{% endif %}>{{ lop }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label for="khoa">Lọc theo Khoa:</label>
-                <select name="khoa" id="khoa">
-                    <option value="">-- Tất cả Khoa --</option>
-                    {% for khoa in danh_sach_khoa %}
-                        <option value="{{ khoa }}" {% if khoa == search_params.khoa %}selected{% endif %}>{{ khoa }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+<div class="student-hero">
+    <div>
+        <h2>Quản lý Sinh viên</h2>
+        <p>Tra cứu, lọc và cập nhật hồ sơ sinh viên nhanh chóng.</p>
+    </div>
+    <div class="student-hero-actions">
+        <a href="{{ url_for('admin_import_students') }}" class="pill-btn pill-primary"><i class="fa-solid fa-file-excel"></i> Nhập từ Excel</a>
+        <a href="{{ url_for('admin_add_student') }}" class="pill-btn pill-success"><i class="fa-solid fa-user-plus"></i> Thêm Sinh viên mới</a>
+    </div>
+</div>
+
+<form class="filter-card" method="GET" action="{{ url_for('admin_manage_students') }}">
+    <div class="filter-head">
+        <strong>Bộ lọc nhanh</strong>
+        <span style="color:#666; font-size:13px;">Điền tiêu chí và chọn “Tìm kiếm / Lọc” hoặc xuất Excel ngay.</span>
+    </div>
+    <div class="filter-grid">
+        <div>
+            <label for="ma_sv">Tìm theo Mã SV</label>
+            <input type="text" name="ma_sv" id="ma_sv" value="{{ search_params.ma_sv }}">
         </div>
-        
-        <div class="filter-buttons">
-            <input type="submit" value="Tìm kiếm / Lọc">
-            
-            <a href="{{ url_for('admin_manage_students') }}">Xóa bộ lọc</a>
-            
-            <a href="{{ url_for('admin_export_students_excel', 
-                        ma_sv=search_params.ma_sv, 
-                        ho_ten=search_params.ho_ten, 
-                        lop=search_params.lop, 
-                        khoa=search_params.khoa) }}" 
-               class="btn-export"> Xuất Excel (Danh sách này)
-            </a>
+        <div>
+            <label for="ho_ten">Tìm theo Tên SV</label>
+            <input type="text" name="ho_ten" id="ho_ten" value="{{ search_params.ho_ten }}">
         </div>
-    </form>
-    <table class="data-table" style="margin-top: 20px;"> <thead>
-        <thead>
-            <tr>
-                <th>Mã SV</th>
-                <th>Họ tên</th>
-                <th>Ngày sinh</th>
-                <th>Lớp</th>
-                <th>Khoa</th>
-                <th style="width: 150px;">Hành động</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for sv in students %}
-            <tr>
-                <td>{{ sv.ma_sv }}</td>
-                <td>{{ sv.ho_ten }}</td>
-                <td>{{ sv.ngay_sinh.strftime('%d-%m-%Y') if sv.ngay_sinh else '' }}</td>
-                <td>{{ sv.lop }}</td>
-                <td>{{ sv.khoa }}</td>
-                
-                <td class="action-buttons">
-                    
-                    <a href="{{ url_for('admin_edit_student', ma_sv=sv.ma_sv) }}" class="btn btn-edit">Sửa</a>
-                    
-                    <form method="POST" action="{{ url_for('admin_delete_student', ma_sv=sv.ma_sv) }}" 
-                          
-                          onsubmit="return confirm('Bạn có chắc muốn xóa sinh viên {{ sv.ho_ten }} ({{ sv.ma_sv }})? \n\nCẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn cả TÀI KHOẢN và toàn bộ KẾT QUẢ HỌC TẬP của sinh viên này.');"
-                          style="margin: 0;"> 
-                        <input type="submit" value="Xóa" class="btn btn-delete">
-                    </form>
-                </td>
-            </tr>
+        <div>
+            <label for="lop">Lọc theo Lớp</label>
+            <select name="lop" id="lop">
+                <option value="">-- Tất cả Lớp --</option>
+                {% for lop in danh_sach_lop %}
+                    <option value="{{ lop }}" {% if lop == search_params.lop %}selected{% endif %}>{{ lop }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="khoa">Lọc theo Khoa</label>
+            <select name="khoa" id="khoa">
+                <option value="">-- Tất cả Khoa --</option>
+                {% for khoa in danh_sach_khoa %}
+                    <option value="{{ khoa }}" {% if khoa == search_params.khoa %}selected{% endif %}>{{ khoa }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="filter-actions">
+        <input type="submit" value="Tìm kiếm / Lọc">
+        <a class="reset-link" href="{{ url_for('admin_manage_students') }}">Xóa bộ lọc</a>
+        <a href="{{ url_for('admin_export_students_excel', 
+                    ma_sv=search_params.ma_sv, 
+                    ho_ten=search_params.ho_ten, 
+                    lop=search_params.lop, 
+                    khoa=search_params.khoa) }}" 
+           class="btn-export">Xuất Excel (Danh sách này)</a>
+    </div>
+</form>
+
+<table class="data-table" style="margin-top: 14px;">
+    <thead>
+        <tr>
+            <th>Mã SV</th>
+            <th>Họ tên</th>
+            <th>Ngày sinh</th>
+            <th>Lớp</th>
+            <th>Khoa</th>
+            <th style="width: 170px;">Hành động</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sv in students %}
+        <tr>
+            <td>{{ sv.ma_sv }}</td>
+            <td>{{ sv.ho_ten }}</td>
+            <td>{{ sv.ngay_sinh.strftime('%d-%m-%Y') if sv.ngay_sinh else '' }}</td>
+            <td>{{ sv.lop }}</td>
+            <td>{{ sv.khoa }}</td>
             
-            {% else %}
-            <tr>
-                <td colspan="6">Không tìm thấy sinh viên nào khớp với tiêu chí tìm kiếm.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+            <td class="action-buttons">
+                <a href="{{ url_for('admin_edit_student', ma_sv=sv.ma_sv) }}" class="btn btn-edit">Sửa</a>
+                <form method="POST" action="{{ url_for('admin_delete_student', ma_sv=sv.ma_sv) }}" 
+                      onsubmit="return confirm('Bạn có chắc muốn xóa sinh viên {{ sv.ho_ten }} ({{ sv.ma_sv }})? \n\nCẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn cả tài khoản và toàn bộ kết quả học tập của sinh viên này.');"
+                      style="margin: 0;"> 
+                    <input type="submit" value="Xóa" class="btn btn-delete">
+                </form>
+            </td>
+        </tr>
         
-    </table>
-    <table class="data-table" style="margin-top: 20px;">
-        <thead>
-            </thead>
-        <tbody>
-            </tbody>
-    </table>
+        {% else %}
+        <tr>
+            <td colspan="6">Không tìm thấy sinh viên nào khớp với tiêu chí tìm kiếm.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endblock %}
