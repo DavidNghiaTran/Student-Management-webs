@@ -8,11 +8,13 @@
         max-height: 500px;
         overflow-y: auto;
     }
+
     .notifications-table {
         list-style: none;
         padding: 0;
         margin: 0;
     }
+
     .notifications-table li {
         padding: 12px 0;
         border-bottom: 1px solid #eee;
@@ -21,22 +23,26 @@
         align-items: center;
         gap: 12px;
     }
+
     .notifications-table li:last-child {
         border-bottom: none;
     }
+
     .notifications-table a,
     .notifications-table span.title-only {
-        color: #b71c1c;
+        color: var(--primary-color);
         text-decoration: none;
         font-weight: 600;
         flex: 1;
         font-size: 1rem;
     }
+
     .notifications-table a:hover {
         text-decoration: underline;
     }
+
     .notifications-table span.date {
-        color: #888;
+        color: var(--muted-text);
         font-size: 0.9rem;
         white-space: nowrap;
     }
@@ -52,26 +58,26 @@
 
     <div class="card-body notification-list">
         {% if notifications %}
-            <ul class="notifications-table">
-                {% for msg in notifications %}
-                <li>
-                    {% if msg.link %}
-                        <a href="{{ msg.link }}">{{ msg.title }}</a>
-                    {% else %}
-                        <span class="title-only">{{ msg.title }}</span>
-                    {% endif %}
-                    <span class="date">{{ msg.date }}</span>
-                </li>
-                {% endfor %}
-            </ul>
+        <ul class="notifications-table">
+            {% for msg in notifications %}
+            <li>
+                {% if msg.link %}
+                <a href="{{ msg.link }}">{{ msg.title }}</a>
+                {% else %}
+                <span class="title-only">{{ msg.title }}</span>
+                {% endif %}
+                <span class="date">{{ msg.date }}</span>
+            </li>
+            {% endfor %}
+        </ul>
         {% else %}
-            <p>Không có thông báo nào.</p>
+        <p>Không có thông báo nào.</p>
         {% endif %}
 
         {% if not has_real_announcements %}
-            <p style="margin-top:10px; color:#888; font-size:0.85rem;">
-                
-            </p>
+        <p style="margin-top:10px; color:#888; font-size:0.85rem;">
+
+        </p>
         {% endif %}
     </div>
 </div>

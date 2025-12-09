@@ -9,21 +9,23 @@
         Xuất Bảng điểm ra Excel (Tùy chọn)
     </div>
     <div class="card-body">
-        <p>
-            Vui lòng chọn Lớp và/hoặc Môn học để lọc kết quả xuất.
-        </p>
+        <p>Chọn Lớp và/hoặc Môn học để lọc kết quả xuất. Giáo viên chỉ thấy phạm vi được phân công.</p>
         <ul style="font-size: 0.9em; color: #555; margin-bottom: 20px;">
+            {% if allow_all %}
             <li><b>Chỉ xuất theo Lớp:</b> chọn Lớp và chọn "-- Tất cả Môn học --".</li>
             <li><b>Chỉ xuất theo Môn:</b> chọn Môn học và chọn "-- Tất cả Lớp --".</li>
             <li><b>Xuất kết hợp:</b> chọn Lớp và Môn học cụ thể.</li>
             <li><b>Xuất toàn bộ:</b> chọn "-- Tất cả Lớp --" và "-- Tất cả Môn học --".</li>
+            {% else %}
+            <li><b>Giáo viên:</b> vui lòng chọn đúng Lớp và Môn được phân công.</li>
+            {% endif %}
         </ul>
 
         <form method="POST" action="{{ url_for('admin_perform_export') }}">
             <div style="margin-bottom: 15px;">
                 <label for="lop">Chọn Lớp:</label>
                 <select name="lop" id="lop" required style="width: 100%; max-width: 400px;">
-                    <option value="all">-- Tất cả Lớp --</option>
+                    {% if allow_all %}<option value="all">-- Tất cả Lớp --</option>{% endif %}
                     {% for lop in danh_sach_lop %}
                         <option value="{{ lop }}">{{ lop }}</option>
                     {% endfor %}
@@ -33,7 +35,7 @@
             <div style="margin-bottom: 15px;">
                 <label for="ma_mh">Chọn Môn học:</label>
                 <select name="ma_mh" id="ma_mh" required style="width: 100%; max-width: 400px;">
-                    <option value="all">-- Tất cả Môn học --</option>
+                    {% if allow_all %}<option value="all">-- Tất cả Môn học --</option>{% endif %}
                     {% for mh in danh_sach_mon_hoc %}
                         <option value="{{ mh.ma_mh }}">{{ mh.ten_mh }} ({{ mh.ma_mh }})</option>
                     {% endfor %}

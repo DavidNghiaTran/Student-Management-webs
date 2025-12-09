@@ -17,6 +17,10 @@
                 <h4 style="margin: 0 0 5px 0;">GPA Tích lũy (Hệ 4)</h4>
                 <strong style="font-size: 2em; color: #5cb85c;">{{ "%.2f"|format(gpa_4_cumulative) }}</strong>
             </div>
+            <div style="padding: 15px; background-color: #fff5f5; border: 1px solid #f0c2c2; border-radius: 8px; min-width: 180px;">
+                <h4 style="margin: 0 0 5px 0;">Xếp loại</h4>
+                <strong style="font-size: 1.4em; color: #c62828;">{{ gpa_classification }}</strong>
+            </div>
         </div>
 
         <h3 style="margin-top: 20px;">Chi tiết điểm các môn theo Học kỳ</h3>
@@ -27,12 +31,13 @@
 
         {% for hoc_ky, ky_data in semesters_data | dictsort %}
             <div class="semester-group" style="margin-bottom: 30px;">
-                <h4 style="padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; border-bottom: none; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; border-bottom: none; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <span>HỌC KỲ {{ hoc_ky }}</span>
                     <span style="font-size: 0.9em; font-weight: 500;">
                         (GPA Kỳ - Hệ 10: <strong style="color: #0275d8;">{{ "%.2f"|format(ky_data.gpa_10) }}</strong> | 
                          GPA Kỳ - Hệ 4: <strong style="color: #5cb85c;">{{ "%.2f"|format(ky_data.gpa_4) }}</strong>)
                     </span>
+                    <span style="background:#ffeaea; color:#b71c1c; padding:6px 10px; border-radius:999px; font-size:0.9em; font-weight:600;">Xếp loại: {{ ky_data.xep_loai }}</span>
                 </h4>
                 
                 <table class="data-table" style="margin-top: 0;">

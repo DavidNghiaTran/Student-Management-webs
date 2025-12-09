@@ -5,20 +5,30 @@
 {% block content %}
 <h1>Lịch giảng dạy</h1>
 
+{% if allow_manage_schedule %}
+{% set is_editing = edit_item is not none %}
 <div class="card">
-    <div class="card-header">Thêm buổi học/giảng dạy</div>
+    <div class="card-header schedule-header">
+        <span>{{ 'Cập nhật buổi học/giảng dạy' if is_editing else 'Thêm buổi học/giảng dạy' }}</span>
+        {% if is_editing %}
+            <a class="btn btn-secondary btn-ghost" href="{{ url_for('admin_schedule', lop=selected_lop) }}">Hủy bỏ</a>
+        {% endif %}
+    </div>
     <div class="card-body">
         <form method="post" class="form-grid two">
+            {% if is_editing %}
+                <input type="hidden" name="schedule_id" value="{{ edit_item.id }}">
+            {% endif %}
             <div>
                 <label>Tiêu đề</label>
-                <input type="text" name="tieu_de" placeholder="VD: Cấu trúc dữ liệu" />
+                <input type="text" name="tieu_de" value="{{ edit_item.tieu_de if is_editing else '' }}" placeholder="VD: Cấu trúc dữ liệu" />
             </div>
             <div>
                 <label>Lớp</label>
                 <select name="lop" required>
                     <option value="">-- Chọn lớp --</option>
                     {% for lop in danh_sach_lop %}
-                        <option value="{{ lop }}">{{ lop }}</option>
+                        <option value="{{ lop }}" {% if (is_editing and edit_item.lop == lop) or (not is_editing and selected_lop == lop) %}selected{% endif %}>{{ lop }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -27,49 +37,53 @@
                 <select name="ma_mh">
                     <option value="">-- Không chọn --</option>
                     {% for mh in danh_sach_mon_hoc %}
-                        <option value="{{ mh.ma_mh }}">{{ mh.ma_mh }} - {{ mh.ten_mh }}</option>
+                        <option value="{{ mh.ma_mh }}" {% if is_editing and edit_item.ma_mh == mh.ma_mh %}selected{% endif %}>{{ mh.ma_mh }} - {{ mh.ten_mh }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
                 <label>Thứ trong tuần</label>
                 <select name="thu_trong_tuan">
+                    {% if is_editing and edit_item.thu_trong_tuan %}
+                        <option value="{{ edit_item.thu_trong_tuan }}" selected hidden>{{ edit_item.thu_trong_tuan }}</option>
+                    {% endif %}
                     <option value="">-- Tuần cố định --</option>
-                    <option>Thứ 2</option>
-                    <option>Thứ 3</option>
-                    <option>Thứ 4</option>
-                    <option>Thứ 5</option>
-                    <option>Thứ 6</option>
-                    <option>Thứ 7</option>
-                    <option>Chủ nhật</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 2' %}selected{% endif %}>Thứ 2</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 3' %}selected{% endif %}>Thứ 3</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 4' %}selected{% endif %}>Thứ 4</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 5' %}selected{% endif %}>Thứ 5</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 6' %}selected{% endif %}>Thứ 6</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Thứ 7' %}selected{% endif %}>Thứ 7</option>
+                    <option {% if is_editing and edit_item.thu_trong_tuan == 'Chủ nhật' %}selected{% endif %}>Chủ nhật</option>
                 </select>
             </div>
             <div>
                 <label>Ngày cụ thể</label>
-                <input type="date" name="ngay_hoc" />
+                <input type="date" name="ngay_hoc" value="{{ edit_item.ngay_hoc.strftime('%Y-%m-%d') if is_editing and edit_item.ngay_hoc else '' }}" />
             </div>
             <div>
                 <label>Giờ bắt đầu</label>
-                <input type="text" name="gio_bat_dau" placeholder="08:00" />
+                <input type="text" name="gio_bat_dau" value="{{ edit_item.gio_bat_dau if is_editing else '' }}" placeholder="08:00" />
             </div>
             <div>
                 <label>Giờ kết thúc</label>
-                <input type="text" name="gio_ket_thuc" placeholder="10:00" />
+                <input type="text" name="gio_ket_thuc" value="{{ edit_item.gio_ket_thuc if is_editing else '' }}" placeholder="10:00" />
             </div>
             <div>
                 <label>Phòng</label>
-                <input type="text" name="phong" placeholder="A101" />
+                <input type="text" name="phong" value="{{ edit_item.phong if is_editing else '' }}" placeholder="A101" />
             </div>
             <div style="grid-column:1/-1;">
                 <label>Ghi chú</label>
-                <textarea name="ghi_chu" rows="2" placeholder="Nội dung thêm..."></textarea>
+                <textarea name="ghi_chu" rows="2" placeholder="Nội dung thêm...">{{ edit_item.ghi_chu if is_editing else '' }}</textarea>
             </div>
             <div class="form-actions" style="grid-column:1/-1; justify-content: flex-end;">
-                <button type="submit" class="btn btn-primary">Lưu lịch</button>
+                <button type="submit" class="btn btn-primary">{{ 'Cập nhật lịch' if is_editing else 'Lưu lịch' }}</button>
             </div>
         </form>
     </div>
 </div>
+{% endif %}
 
 <div class="card">
     <div class="card-header schedule-header">
@@ -120,16 +134,37 @@
                                     {% endfor %}
                                 </div>
                                 {% for event in week_view.events_by_day[day.key] %}
-                                    <div class="event-block admin-event" style="top: {{ event.top_pct }}%; height: {{ event.height_pct }}%;">
-                                        <div class="event-title">{{ event.subject or event.title }}</div>
-                                        <div class="event-meta stacked">
-                                            {% if event.class %}<span><strong>Lớp:</strong> {{ event.class }}</span>{% endif %}
+                                    {% set title_text = event.title or '' %}
+                                    {% set suffix = title_text.split('(')[-1] if '(' in title_text else '' %}
+                                    <div class="event-block{% if allow_manage_schedule %} has-actions{% endif %}" style="top: {{ event.top_pct }}%; height: {{ event.height_pct }}%; min-height: 120px;">
+                                        {% if allow_manage_schedule %}
+                                            <div class="event-actions">
+                                                <a class="icon-btn" title="Sửa lịch" href="{{ url_for('admin_schedule', lop=event.class or selected_lop, edit_id=event.id) }}">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </a>
+                                                <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=event.id) }}" onsubmit="return confirm('Xóa lịch này?');">
+                                                    <button type="submit" class="icon-btn danger" title="Xóa lịch">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        {% endif %}
+                                        <div class="event-title">
+                                            {{ event.subject or title_text }}{% if suffix %} ({{ suffix }}){% endif %}
+                                        </div>
+                                        <div class="event-meta">
                                             {% if event.group %}<span><strong>Nhóm:</strong> {{ event.group }}</span>{% endif %}
                                             {% if event.room %}<span><strong>Phòng:</strong> {{ event.room }}</span>{% endif %}
                                             {% if event.teacher %}<span><strong>GV:</strong> {{ event.teacher }}</span>{% endif %}
-                                            <span><i class="fa-regular fa-clock"></i> {{ event.time_label }}</span>
+                                            <span style="margin-top: 4px; font-size: 0.8rem; color: #555;">
+                                                <i class="fa-regular fa-clock"></i> {{ event.time_label }}
+                                            </span>
                                         </div>
-                                        {% if event.note %}<div class="event-note">{{ event.note }}</div>{% endif %}
+                                        {% if event.note %}
+                                            <div class="event-note" style="margin-top: 4px; font-style: italic; font-size: 0.8rem;">
+                                                {{ event.note }}
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 {% endfor %}
                             </div>
@@ -139,7 +174,7 @@
             </div>
             {% if week_view.extra_events %}
                 <div class="schedule-extra">
-                    <div class="extra-title"><i class="fa-solid fa-circle-question"></i> Buổi chưa rõ thứ</div>
+                    <div class="extra-title"><i class="fa-solid fa-circle-question"></i> Buổi chưa rõ thời gian</div>
                     <div class="extra-grid">
                         {% for event in week_view.extra_events %}
                             <div class="extra-item">
@@ -149,9 +184,6 @@
                                     {% if event.room %}<span><i class="fa-solid fa-location-dot"></i> {{ event.room }}</span>{% endif %}
                                     {% if event.class %}<span><i class="fa-solid fa-layer-group"></i> {{ event.class }}</span>{% endif %}
                                 </div>
-                                <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=event.id) }}" onsubmit="return confirm('Xóa lịch này?');">
-                                    <button type="submit" class="btn btn-secondary btn-icon danger"><i class="fa-solid fa-trash"></i></button>
-                                </form>
                             </div>
                         {% endfor %}
                     </div>
@@ -161,6 +193,7 @@
     </div>
 </div>
 
+{% if allow_manage_schedule %}
 <div class="card">
     <div class="card-header">Danh sách lịch (dạng bảng)</div>
     <div class="card-body">
@@ -178,7 +211,7 @@
                             <th>Thời gian</th>
                             <th>Phòng</th>
                             <th>Ghi chú</th>
-                            <th></th>
+                            <th style="width: 130px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -205,7 +238,8 @@
                                 </td>
                                 <td>{{ item.phong or '-' }}</td>
                                 <td>{{ item.ghi_chu or '-' }}</td>
-                                <td>
+                                <td style="display:flex; gap:8px; align-items:center;">
+                                    <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_schedule', lop=item.lop, edit_id=item.id) }}">Sửa</a>
                                     <form method="post" action="{{ url_for('admin_delete_schedule', schedule_id=item.id) }}" onsubmit="return confirm('Xóa lịch này?');">
                                         <button class="btn btn-secondary btn-sm danger" type="submit">Xóa</button>
                                     </form>
@@ -218,4 +252,5 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 {% endblock %}

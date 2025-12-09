@@ -1,0 +1,116 @@
+{% extends "_layout.html" %}
+
+{% block title %}Phân công Giảng dạy{% endblock %}
+
+{% block content %}
+<style>
+    .assign-hero {
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #fff5f5 0%, #fff 40%, #f5f7ff 100%);
+        border: 1px solid #f0e6e6;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 16px 28px rgba(0,0,0,0.05);
+    }
+    .assign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .assign-grid label { display: block; font-weight: 600; margin-bottom: 6px; color: #444; }
+    .assign-table th { text-transform: uppercase; font-size: 12px; }
+    .pill { border-radius: 12px; padding: 6px 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+</style>
+
+<div class="assign-hero">
+    <h2 style="margin:0;">Phân công môn–lớp cho Giảng viên</h2>
+    <p style="margin:4px 0 0 0; color:#555;">Gán môn/lớp, bật/tắt quyền nhập điểm; giáo viên chỉ thao tác trong phạm vi phân công.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">Tạo phân công mới</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_manage_teacher_assignments') }}">
+            <div class="assign-grid">
+                <div>
+                    <label for="ma_gv">Giảng viên</label>
+                    <select name="ma_gv" id="ma_gv" required>
+                        <option value="">-- Chọn GV --</option>
+                        {% for gv in teachers %}
+                            <option value="{{ gv.username }}">{{ gv.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="ma_mh">Môn học</label>
+                    <select name="ma_mh" id="ma_mh" required>
+                        <option value="">-- Chọn môn --</option>
+                        {% for mh in courses %}
+                            <option value="{{ mh.ma_mh }}">{{ mh.ten_mh }} ({{ mh.ma_mh }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="lop">Lớp</label>
+                    <select name="lop" id="lop" required>
+                        <option value="">-- Chọn lớp --</option>
+                        {% for lop in danh_sach_lop %}
+                            <option value="{{ lop }}">{{ lop }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="allow_nhap_diem" id="allow_nhap_diem" value="1" checked>
+                    <label for="allow_nhap_diem" style="margin:0;">Cho phép nhập điểm</label>
+                </div>
+            </div>
+            <div style="margin-top:14px;">
+                <input type="submit" value="Lưu phân công">
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+    <div class="card-header">Danh sách phân công</div>
+    <div class="card-body">
+        <div class="table-scroll">
+        <table class="data-table assign-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Giảng viên</th>
+                    <th>Môn</th>
+                    <th>Lớp</th>
+                    <th>Cho nhập điểm</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pc in assignments %}
+                <tr>
+                    <td>{{ pc.id }}</td>
+                    <td>{{ pc.ma_gv }}</td>
+                    <td>{{ pc.ma_mh }}</td>
+                    <td>{{ pc.lop }}</td>
+                    <td style="text-align:center;">
+                        {% if pc.allow_nhap_diem %}
+                            <span class="pill" style="background:#e6ffed; color:#15803d; border:1px solid #16a34a;">Mở</span>
+                        {% else %}
+                            <span class="pill" style="background:#fff1f2; color:#c53030; border:1px solid #f97373;">Khóa</span>
+                        {% endif %}
+                    </td>
+                    <td style="display:flex; gap:8px; align-items:center;">
+                        <form method="POST" action="{{ url_for('admin_toggle_teacher_assignment', assignment_id=pc.id) }}" style="margin:0;">
+                            <button type="submit" class="btn btn-edit">{{ 'Khóa nhập' if pc.allow_nhap_diem else 'Mở nhập' }}</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('admin_delete_teacher_assignment', assignment_id=pc.id) }}" style="margin:0;" onsubmit="return confirm('Thu hồi phân công này?');">
+                            <button type="submit" class="btn btn-delete">Xóa</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6">Chưa có phân công nào.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

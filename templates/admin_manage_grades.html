@@ -3,80 +3,163 @@
 {% block title %}Quản lý Điểm thi{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">Quản lý Điểm thi</div>
-    <div class="card-body">
+{% set export_disabled = not (selected_lop and selected_mh_id) %}
+{% set edit_locked = not can_edit_grades %}
+<style>
+    .grades-hero {
+        padding: 18px 20px;
+        background: linear-gradient(120deg, #fff5f5, #fff, #f5f7ff);
+        border: 1px solid #f0e6e6;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 16px 28px rgba(0,0,0,0.05);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .grades-hero h2 { margin: 0 0 6px 0; color: var(--primary-color); }
+    .grades-hero p { margin: 0; color: #555; }
+    .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 30px;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        box-shadow: 0 12px 20px rgba(0,0,0,0.08);
+    }
+    .pill-primary { background: #0d6efd; }
+    .pill-ghost { background: #fff; color: var(--primary-color); border: 1px solid rgba(183,28,28,0.3); }
+    .pill-disabled { background: #9ca3af; cursor: not-allowed; }
+    .filter-card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 16px 18px 12px 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 22px rgba(0,0,0,0.04);
+    }
+    .filter-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .filter-head strong { color: #222; }
+    .filter-head .hint { color: #666; font-size: 13px; }
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+    }
+    .filter-grid label { font-weight: 600; font-size: 14px; color: #444; margin-bottom: 6px; display: block; }
+    .filter-actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .filter-actions .pill {
+        border-radius: 10px;
+        padding: 10px 14px;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .pill-secondary { background: #f7f7f7; color: var(--text-color); border: 1px solid #e0e0e0; }
+    .pill-success { background: #2fb344; color: #fff; border: none; }
+    .pill-secondary[disabled], .pill-success[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .data-table thead {
+        background: linear-gradient(90deg, #c62828 0%, #d32f2f 60%, #e53935 100%);
+        color: #fff;
+    }
+</style>
 
-        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                <a href="{{ url_for('admin_import_grades') }}" class="btn" style="background-color: #17a2b8;">
-                    <i class="fa-solid fa-file-excel"></i> Nhập điểm từ File Excel
-                </a>
-                {% set export_disabled = not (selected_lop and selected_mh_id) %}
-                <form method="POST" action="{{ url_for('admin_perform_export') }}" style="margin: 0;">
-                    <input type="hidden" name="lop" value="{{ selected_lop or '' }}">
-                    <input type="hidden" name="ma_mh" value="{{ selected_mh_id or '' }}">
-                    <button type="submit" class="btn" style="background-color: #28a745;" {% if export_disabled %}disabled{% endif %}>
-                        <i class="fa-solid fa-file-export"></i> Xuất điểm (Excel)
-                    </button>
-                </form>
-            </div>
-            <p style="font-size: 0.9em; color: #555; margin-top: 8px;">Chọn Lớp/Môn để xem, sửa và xuất file điểm trực tiếp trên trang này.</p>
-            {% if export_disabled %}
-                <p style="font-size: 0.85em; color: #888; margin-top: 4px;">Nút xuất Excel sẽ bật sau khi bạn chọn cả Lớp và Môn học bên dưới.</p>
-            {% endif %}
-            <p style="font-size: 0.85em; margin-top: 6px;">
-                <a href="{{ url_for('admin_export_grades') }}" style="color: #0d6efd; text-decoration: none;">Cần lọc nâng cao? Mở trang xuất điểm tổng hợp</a>
-            </p>
+<div class="grades-hero">
+    <div>
+        <h2>Quản lý Điểm thi</h2>
+        <p>Nhập/xuất Excel trong luồng lọc; xem và chỉnh sửa điểm theo Lớp + Môn.</p>
+    </div>
+    <div class="hero-actions">
+        {% if edit_locked %}
+            <span class="pill-btn pill-primary pill-disabled"><i class="fa-solid fa-lock"></i> Nhập điểm Excel (khóa)</span>
+        {% else %}
+            <a href="{{ url_for('admin_import_grades') }}" class="pill-btn pill-primary"><i class="fa-solid fa-file-import"></i> Nhập điểm Excel</a>
+        {% endif %}
+        <a href="{{ url_for('admin_export_grades') }}" class="pill-btn pill-ghost"><i class="fa-solid fa-arrow-up-from-bracket"></i> Bộ lọc xuất tổng hợp</a>
+    </div>
+</div>
+
+<form class="filter-card" id="grades-export" method="GET" action="{{ url_for('admin_manage_grades') }}">
+    <div class="filter-head">
+        <strong>Bộ lọc theo Lớp &amp; Môn</strong>
+        <span class="hint">Chọn bộ lọc, xem bảng điểm và bật nút xuất Excel ngay tại đây.</span>
+    </div>
+    <div class="filter-grid">
+        <div>
+            <label for="lop">Chọn Lớp</label>
+            <select name="lop" id="lop" required>
+                <option value="">-- Vui lòng chọn --</option>
+                {% for lop in danh_sach_lop %}
+                    <option value="{{ lop }}" {% if lop == selected_lop %}selected{% endif %}>{{ lop }}</option>
+                {% endfor %}
+            </select>
         </div>
+        <div>
+            <label for="ma_mh">Chọn Môn học</label>
+            <select name="ma_mh" id="ma_mh" required>
+                <option value="">-- Vui lòng chọn --</option>
+                {% for mh in danh_sach_mon_hoc %}
+                     <option value="{{ mh.ma_mh }}" {% if mh.ma_mh == selected_mh_id %}selected{% endif %}>{{ mh.ten_mh }} ({{ mh.ma_mh }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="filter-actions">
+        <input type="submit" value="Xem Điểm">
+        {% if edit_locked %}
+            <span class="pill pill-secondary" style="opacity:0.6; pointer-events:none;"><i class="fa-solid fa-lock"></i> Nhập từ Excel (khóa)</span>
+        {% else %}
+            <a class="pill pill-secondary" href="{{ url_for('admin_import_grades') }}"><i class="fa-solid fa-file-import"></i> Nhập từ Excel</a>
+        {% endif %}
+        <button type="submit" form="export-form" class="pill pill-success" {% if export_disabled %}disabled{% endif %}>
+            <i class="fa-solid fa-file-export"></i> Xuất Excel (theo lọc)
+        </button>
+        {% if export_disabled %}
+            <span class="hint">Chọn cả Lớp và Môn để bật nút xuất.</span>
+        {% endif %}
+    </div>
+</form>
+<form id="export-form" method="POST" action="{{ url_for('admin_perform_export') }}">
+    <input type="hidden" name="lop" value="{{ selected_lop or '' }}">
+    <input type="hidden" name="ma_mh" value="{{ selected_mh_id or '' }}">
+</form>
 
-        <p style="font-weight: 500;">Chọn Lớp và Môn học để xem điểm chi tiết:</p>
-
-        <form method="GET" action="{{ url_for('admin_manage_grades') }}" style="margin-top: 15px;">
-            <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
-                <div>
-                    <label for="lop">Chọn Lớp:</label>
-                    <select name="lop" id="lop" required>
-                        <option value="">-- Vui lòng chọn --</option>
-                        {% for lop in danh_sach_lop %}
-                            <option value="{{ lop }}" {% if lop == selected_lop %}selected{% endif %}>{{ lop }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="ma_mh">Chọn Môn học:</label>
-                    <select name="ma_mh" id="ma_mh" required>
-                        <option value="">-- Vui lòng chọn --</option>
-                        {% for mh in danh_sach_mon_hoc %}
-                             <option value="{{ mh.ma_mh }}" {% if mh.ma_mh == selected_mh_id %}selected{% endif %}>{{ mh.ten_mh }} ({{ mh.ma_mh }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="submit" value="Xem Điểm">
-                </div>
+{% if selected_lop and selected_mon_hoc %}
+    <div class="card" style="margin-top: 10px;">
+        <div class="card-header" style="display:flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <div style="font-weight:600;">Bảng điểm chi tiết - Lớp: {{ selected_lop }}</div>
+                <div class="helper-text">Môn: {{ selected_mon_hoc.ten_mh }} | Tỉ lệ: CC {{ selected_mon_hoc.ty_le_chuyen_can }}% • TH {{ selected_mon_hoc.ty_le_thuc_hanh }}% • GK {{ selected_mon_hoc.ty_le_giua_ky }}% • CK {{ selected_mon_hoc.ty_le_cuoi_ky }}%</div>
+                {% if edit_locked %}
+                    <div class="helper-text" style="color:#c62828;">Quyền nhập/sửa điểm lớp/môn này đang bị khóa.</div>
+                {% endif %}
             </div>
-        </form>
-
-        {% if selected_lop and selected_mon_hoc %}
-            <hr style="margin: 30px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                 <h3 style="margin-bottom: 10px;">Bảng điểm chi tiết - Lớp: {{ selected_lop }} - Môn: {{ selected_mon_hoc.ten_mh }}</h3>
-                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                     <a href="{{ url_for('admin_enter_grades', lop=selected_lop, ma_mh=selected_mh_id) }}" class="btn">
-                         <i class="fa-solid fa-pen-to-square"></i> Sửa điểm lớp này
-                     </a>
-                     <form method="POST" action="{{ url_for('admin_perform_export') }}" style="margin: 0;">
-                         <input type="hidden" name="lop" value="{{ selected_lop }}">
-                         <input type="hidden" name="ma_mh" value="{{ selected_mh_id }}">
-                         <button type="submit" class="btn" style="background-color: #28a745;">
-                             <i class="fa-solid fa-file-export"></i> Xuất Excel (Lớp/Môn này)
-                         </button>
-                     </form>
-                 </div>
+            <div style="display:flex; gap:10px; flex-wrap: wrap;">
+                <a href="{{ url_for('admin_enter_grades', lop=selected_lop, ma_mh=selected_mh_id) }}" class="pill-btn pill-primary {% if edit_locked %}pill-disabled{% endif %}" {% if edit_locked %}style="pointer-events:none;"{% endif %}><i class="fa-solid fa-pen-to-square"></i> Sửa điểm lớp này</a>
+                <button type="submit" form="export-form" class="pill-btn pill-ghost" {% if export_disabled %}disabled{% endif %}>
+                    <i class="fa-solid fa-file-export"></i> Xuất Excel (Lớp/Môn này)
+                </button>
             </div>
-            <p class="helper-text" style="margin: 4px 0 14px 0;">Tỷ lệ: CC {{ selected_mon_hoc.ty_le_chuyen_can }}% | TH {{ selected_mon_hoc.ty_le_thuc_hanh }}% | GK {{ selected_mon_hoc.ty_le_giua_ky }}% | CK {{ selected_mon_hoc.ty_le_cuoi_ky }}%</p>
-
+        </div>
+        <div class="card-body">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -115,5 +198,7 @@
                     {% endfor %}
                 </tbody>
             </table>
-        {% endif %}
-        </div> </div> {% endblock %}
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

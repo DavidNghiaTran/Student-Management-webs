@@ -83,11 +83,20 @@
     .filter-actions input[type="submit"] {
         background: #d32f2f;
     }
-    .filter-actions a {
+.filter-actions a {
         text-decoration: none;
         font-weight: 600;
     }
     .filter-actions .reset-link { color: #c2185b; }
+    .filter-actions .btn-import {
+        background: #0d6efd;
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 10px 18px rgba(13,110,253,0.18);
+    }
     .filter-actions .btn-export {
         margin-left: auto;
         background: #2fb344;
@@ -129,16 +138,17 @@
         <h2>Quản lý Sinh viên</h2>
         <p>Tra cứu, lọc và cập nhật hồ sơ sinh viên nhanh chóng.</p>
     </div>
+    {% if allow_manage %}
     <div class="student-hero-actions">
-        <a href="{{ url_for('admin_import_students') }}" class="pill-btn pill-primary"><i class="fa-solid fa-file-excel"></i> Nhập từ Excel</a>
         <a href="{{ url_for('admin_add_student') }}" class="pill-btn pill-success"><i class="fa-solid fa-user-plus"></i> Thêm Sinh viên mới</a>
     </div>
+    {% endif %}
 </div>
 
-<form class="filter-card" method="GET" action="{{ url_for('admin_manage_students') }}">
+<form class="filter-card" method="GET" action="{{ url_for('admin_manage_students') }}" id="export-filter">
     <div class="filter-head">
         <strong>Bộ lọc nhanh</strong>
-        <span style="color:#666; font-size:13px;">Điền tiêu chí và chọn “Tìm kiếm / Lọc” hoặc xuất Excel ngay.</span>
+        <span style="color:#666; font-size:13px;">Điền tiêu chí và chọn "Tìm kiếm / Lọc" hoặc xuất Excel ngay.</span>
     </div>
     <div class="filter-grid">
         <div>
@@ -171,12 +181,15 @@
     <div class="filter-actions">
         <input type="submit" value="Tìm kiếm / Lọc">
         <a class="reset-link" href="{{ url_for('admin_manage_students') }}">Xóa bộ lọc</a>
+        {% if allow_manage %}
+        <a href="{{ url_for('admin_import_students') }}" class="btn-import"><i class="fa-solid fa-file-import"></i> Nhập từ Excel</a>
         <a href="{{ url_for('admin_export_students_excel', 
                     ma_sv=search_params.ma_sv, 
                     ho_ten=search_params.ho_ten, 
                     lop=search_params.lop, 
                     khoa=search_params.khoa) }}" 
            class="btn-export">Xuất Excel (Danh sách này)</a>
+        {% endif %}
     </div>
 </form>
 
@@ -201,12 +214,16 @@
             <td>{{ sv.khoa }}</td>
             
             <td class="action-buttons">
-                <a href="{{ url_for('admin_edit_student', ma_sv=sv.ma_sv) }}" class="btn btn-edit">Sửa</a>
-                <form method="POST" action="{{ url_for('admin_delete_student', ma_sv=sv.ma_sv) }}" 
-                      onsubmit="return confirm('Bạn có chắc muốn xóa sinh viên {{ sv.ho_ten }} ({{ sv.ma_sv }})? \n\nCẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn cả tài khoản và toàn bộ kết quả học tập của sinh viên này.');"
-                      style="margin: 0;"> 
-                    <input type="submit" value="Xóa" class="btn btn-delete">
-                </form>
+                {% if allow_manage %}
+                    <a href="{{ url_for('admin_edit_student', ma_sv=sv.ma_sv) }}" class="btn btn-edit">Sửa</a>
+                    <form method="POST" action="{{ url_for('admin_delete_student', ma_sv=sv.ma_sv) }}" 
+                          onsubmit="return confirm('Bạn có chắc muốn xóa sinh viên {{ sv.ho_ten }} ({{ sv.ma_sv }})? \n\nCẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn cả tài khoản và toàn bộ kết quả học tập của sinh viên này.');"
+                          style="margin: 0;"> 
+                        <input type="submit" value="Xóa" class="btn btn-delete">
+                    </form>
+                {% else %}
+                    <span class="helper-text">Chỉ xem</span>
+                {% endif %}
             </td>
         </tr>
         

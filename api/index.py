@@ -49,6 +49,36 @@ def convert_10_to_4_scale(diem_10):
     else:
         return 0.0  # F
 
+def normalize_score_value(raw_value):
+    """
+    Parse score input that may contain comma decimals.
+    Returns a tuple: (score_float_or_none, error_code_or_none).
+    """
+    try:
+        if raw_value is None or pd.isna(raw_value):
+            return None, None
+    except Exception:
+        if raw_value is None:
+            return None, None
+
+    if isinstance(raw_value, str):
+        cleaned = raw_value.strip()
+        if not cleaned:
+            return None, None
+        cleaned = cleaned.replace(',', '.')
+    else:
+        cleaned = raw_value
+
+    try:
+        score_val = float(cleaned)
+    except (ValueError, TypeError):
+        return None, 'invalid_format'
+
+    if not (0 <= score_val <= 10):
+        return None, 'out_of_range'
+
+    return score_val, None
+
 import enum
 import math
 import pandas as pd
@@ -61,7 +91,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_bcrypt import Bcrypt
 from datetime import datetime, date
 from sqlalchemy.sql import func, case, literal_column
-from sqlalchemy import select, and_, text, inspect as sa_inspect
+from sqlalchemy import select, and_, text, inspect as sa_inspect, UniqueConstraint
 from sqlalchemy.exc import NoSuchTableError
 from functools import wraps
 
@@ -211,6 +241,23 @@ login_manager.login_message_category = 'info'
 class VaiTroEnum(enum.Enum):
     SINHVIEN = 'SINHVIEN'
     GIAOVIEN = 'GIAOVIEN'
+    ADMIN = 'ADMIN'
+
+# Danh mục Khoa (chuẩn hóa)
+class Khoa(db.Model):
+    __tablename__ = 'khoa'
+    ma_khoa = db.Column(db.String(50), primary_key=True)
+    ten_khoa = db.Column(db.String(150), nullable=True)
+    mo_ta = db.Column(db.Text, nullable=True)
+
+# Danh mục Lớp (chuẩn hóa)
+class Lop(db.Model):
+    __tablename__ = 'lop'
+    ma_lop = db.Column(db.String(50), primary_key=True)
+    ten_lop = db.Column(db.String(150), nullable=True)
+    ma_khoa = db.Column(db.String(50), db.ForeignKey('khoa.ma_khoa'), nullable=True)
+
+    khoa = db.relationship('Khoa', backref='lop_list', foreign_keys=[ma_khoa])
 
 # (Tìm và thay thế 3 class này trong api/index.py)
 
@@ -239,8 +286,8 @@ class SinhVien(db.Model):
     ma_sv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username', ondelete='CASCADE'), primary_key=True)
     ho_ten = db.Column(db.String(100), nullable=False)
     ngay_sinh = db.Column(db.Date)
-    lop = db.Column(db.String(50))
-    khoa = db.Column(db.String(100))
+    lop = db.Column(db.String(50), db.ForeignKey('lop.ma_lop'), nullable=True)
+    khoa = db.Column(db.String(50), db.ForeignKey('khoa.ma_khoa'), nullable=True)
     email = db.Column(db.String(150), unique=True, nullable=True)
     location = db.Column(db.String(200), nullable=True)
 
@@ -250,6 +297,8 @@ class SinhVien(db.Model):
                                 backref=db.backref('sinh_vien', uselist=False, cascade='all, delete-orphan'), 
                                 foreign_keys=[ma_sv])
     # ====================================
+    lop_ref = db.relationship('Lop', backref='sinh_vien_list', foreign_keys=[lop])
+    khoa_ref = db.relationship('Khoa', backref='sinh_vien_list', foreign_keys=[khoa])
 
     ket_qua_list = db.relationship('KetQua', backref='sinh_vien', lazy=True, cascade='all, delete-orphan', foreign_keys='KetQua.ma_sv')
 
@@ -385,19 +434,19 @@ class ThongBao(db.Model):
     tieu_de = db.Column(db.String(200), nullable=False)
     noi_dung = db.Column(db.Text, nullable=False)
     ngay_gui = db.Column(db.DateTime(timezone=True), server_default=func.now())
-    ma_gv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username'), nullable=False)
-    lop_nhan = db.Column(db.String(50), nullable=False)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('giao_vien.ma_gv'), nullable=False)
+    lop_nhan = db.Column(db.String(50), db.ForeignKey('lop.ma_lop'), nullable=False)
 
-    nguoi_gui = db.relationship('TaiKhoan', backref='thong_bao_da_gui', foreign_keys=[ma_gv])
+    nguoi_gui = db.relationship('GiaoVien', backref='thong_bao_da_gui', foreign_keys=[ma_gv])
 
 # === Bang moi: Lich hoc / giang day ===
 class LichHoc(db.Model):
     __tablename__ = 'lich_hoc'
     id = db.Column(db.Integer, primary_key=True)
     tieu_de = db.Column(db.String(200), nullable=False)
-    lop = db.Column(db.String(50), nullable=False)
+    lop = db.Column(db.String(50), db.ForeignKey('lop.ma_lop'), nullable=False)
     ma_mh = db.Column(db.String(50), db.ForeignKey('mon_hoc.ma_mh'), nullable=True)
-    ma_gv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username'), nullable=True)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('giao_vien.ma_gv'), nullable=True)
     thu_trong_tuan = db.Column(db.String(20), nullable=True)
     ngay_hoc = db.Column(db.Date, nullable=True)
     gio_bat_dau = db.Column(db.String(20), nullable=True)
@@ -407,7 +456,7 @@ class LichHoc(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
     mon_hoc = db.relationship('MonHoc', backref='lich_hoc', lazy=True)
-    giao_vien = db.relationship('TaiKhoan', backref='lich_giang_day', foreign_keys=[ma_gv])
+    giao_vien = db.relationship('GiaoVien', backref='lich_giang_day', foreign_keys=[ma_gv])
 
 
 # === Bang moi: Bai tap giao cho sinh vien ===
@@ -416,15 +465,35 @@ class BaiTap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tieu_de = db.Column(db.String(200), nullable=False)
     noi_dung = db.Column(db.Text, nullable=False)
-    lop_nhan = db.Column(db.String(50), nullable=False)
+    lop_nhan = db.Column(db.String(50), db.ForeignKey('lop.ma_lop'), nullable=False)
     ma_mh = db.Column(db.String(50), db.ForeignKey('mon_hoc.ma_mh'), nullable=True)
-    ma_gv = db.Column(db.String(50), db.ForeignKey('tai_khoan.username'), nullable=False)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('giao_vien.ma_gv'), nullable=False)
     han_nop = db.Column(db.Date, nullable=True)
     tep_dinh_kem = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
     mon_hoc = db.relationship('MonHoc', backref='bai_tap', lazy=True)
-    giao_vien = db.relationship('TaiKhoan', backref='bai_tap_da_giao', foreign_keys=[ma_gv])
+    giao_vien = db.relationship('GiaoVien', backref='bai_tap_da_giao', foreign_keys=[ma_gv])
+
+
+# Phân công môn/lớp cho giáo viên
+class PhanCong(db.Model):
+    __tablename__ = 'phan_cong'
+    id = db.Column(db.Integer, primary_key=True)
+    ma_gv = db.Column(db.String(50), db.ForeignKey('giao_vien.ma_gv'), nullable=False)
+    ma_mh = db.Column(db.String(50), db.ForeignKey('mon_hoc.ma_mh'), nullable=False)
+    lop = db.Column(db.String(50), db.ForeignKey('lop.ma_lop'), nullable=False)
+    allow_nhap_diem = db.Column(db.Boolean, default=True, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('ma_gv', 'ma_mh', 'lop', name='uq_pc_gv_mh_lop'),
+    )
+
+    # Link to the teacher profile that owns this assignment (ma_gv -> giao_vien.ma_gv)
+    giao_vien = db.relationship('GiaoVien', backref='phan_cong_list', foreign_keys=[ma_gv])
+    mon_hoc_ref = db.relationship('MonHoc', backref='phan_cong_list', foreign_keys=[ma_mh])
 
 # --- 3. LOGIC XÁC THỰC VÀ PHÂN QUYỀN ---
 @login_manager.user_loader
@@ -433,6 +502,8 @@ def load_user(user_id):
 
 
 _TEACHER_SCHEMA_PATCHED = False
+ADMIN_USERNAME = 'admin'
+ADMIN_DEFAULT_PASSWORD = 'admin123'
 
 
 @app.before_request
@@ -444,7 +515,82 @@ def apply_schema_patches():
     db.create_all()
     ensure_teacher_profile_columns()
     ensure_course_weight_columns()
+    ensure_reference_tables()
+    ensure_default_admin_account()
     _TEACHER_SCHEMA_PATCHED = True
+
+def ensure_default_admin_account():
+    """Create a default admin account if missing."""
+    existing_admin = TaiKhoan.query.filter_by(username=ADMIN_USERNAME).first()
+    if existing_admin:
+        return
+    admin_user = TaiKhoan(
+        username=ADMIN_USERNAME,
+        vai_tro=VaiTroEnum.ADMIN
+    )
+    admin_user.set_password(ADMIN_DEFAULT_PASSWORD)
+    db.session.add(admin_user)
+    db.session.commit()
+
+def ensure_reference_tables():
+    """Create/seed Khoa, Lop tables and backfill references from existing rows."""
+    try:
+        db.create_all()
+    except Exception:
+        pass
+
+    # 1. Seed Khoa
+    try:
+        existing_khoa = {k.ma_khoa for k in Khoa.query.all()}
+        distinct_khoa = {row[0] for row in db.session.query(SinhVien.khoa).distinct() if row[0]}
+        for ma_khoa in distinct_khoa:
+            if ma_khoa not in existing_khoa:
+                db.session.add(Khoa(ma_khoa=ma_khoa, ten_khoa=ma_khoa))
+    except Exception:
+        db.session.rollback()
+
+    # 2. Seed Lop (linked to Khoa if available)
+    try:
+        existing_lop = {l.ma_lop for l in Lop.query.all()}
+        lop_rows = db.session.query(SinhVien.lop, SinhVien.khoa).distinct().all()
+        for lop_val, khoa_val in lop_rows:
+            if lop_val and lop_val not in existing_lop:
+                db.session.add(Lop(ma_lop=lop_val, ten_lop=lop_val, ma_khoa=khoa_val))
+    except Exception:
+        db.session.rollback()
+
+    # 3. Backfill FK values on SinhVien
+    try:
+        for sv in SinhVien.query.all():
+            if sv.lop and not Lop.query.get(sv.lop):
+                db.session.add(Lop(ma_lop=sv.lop, ten_lop=sv.lop, ma_khoa=sv.khoa))
+        db.session.flush()
+    except Exception:
+        db.session.rollback()
+
+    # 4. Backfill Lop from other tables
+    def ensure_lop_from_value(lop_val, khoa_val=None):
+        if not lop_val:
+            return
+        if not Lop.query.get(lop_val):
+            db.session.add(Lop(ma_lop=lop_val, ten_lop=lop_val, ma_khoa=khoa_val))
+
+    try:
+        for lop_val, khoa_val in db.session.query(LichHoc.lop, LichHoc.ma_mh).distinct():
+            ensure_lop_from_value(lop_val)
+        for lop_val in db.session.query(BaiTap.lop_nhan).distinct():
+            ensure_lop_from_value(lop_val[0])
+        for lop_val in db.session.query(ThongBao.lop_nhan).distinct():
+            ensure_lop_from_value(lop_val[0])
+        for lop_val in db.session.query(PhanCong.lop).distinct():
+            ensure_lop_from_value(lop_val[0])
+    except Exception:
+        db.session.rollback()
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 def strip_accents(value):
     """Remove Vietnamese accents to make weekday parsing more tolerant."""
@@ -518,13 +664,13 @@ def build_week_view(schedule_items):
         {"key": "sun", "label": "Chủ nhật", "short": "CN"},
     ]
     day_lookup = {
-        'thu 2': 0, 'thu2': 0, 't2': 0, 'thu hai': 0,
-        'thu 3': 1, 'thu3': 1, 't3': 1, 'thu ba': 1,
-        'thu 4': 2, 'thu4': 2, 't4': 2, 'thu tu': 2,
-        'thu 5': 3, 'thu5': 3, 't5': 3, 'thu nam': 3,
-        'thu 6': 4, 'thu6': 4, 't6': 4, 'thu sau': 4,
-        'thu 7': 5, 'thu7': 5, 't7': 5, 'thu bay': 5,
-        'chu nhat': 6, 'chunhat': 6, 'cn': 6,
+        'thu 2': 0, 'thu2': 0, 't2': 0, 'thu hai': 0, 'thứ 2': 0, 'thứ hai': 0,
+        'thu 3': 1, 'thu3': 1, 't3': 1, 'thu ba': 1, 'thứ 3': 1, 'thứ ba': 1,
+        'thu 4': 2, 'thu4': 2, 't4': 2, 'thu tu': 2, 'thứ 4': 2, 'thứ tư': 2,
+        'thu 5': 3, 'thu5': 3, 't5': 3, 'thu nam': 3, 'thứ 5': 3, 'thứ năm': 3,
+        'thu 6': 4, 'thu6': 4, 't6': 4, 'thu sau': 4, 'thứ 6': 4, 'thứ sáu': 4,
+        'thu 7': 5, 'thu7': 5, 't7': 5, 'thu bay': 5, 'thứ 7': 5, 'thứ bảy': 5,
+        'chu nhat': 6, 'chunhat': 6, 'cn': 6, 'chủ nhật': 6,
     }
 
     events_by_day = {d['key']: [] for d in day_defs}
@@ -532,6 +678,33 @@ def build_week_view(schedule_items):
     extras = []
     min_start = 7 * 60
     max_end = 17 * 60
+
+    # Cache teacher names by (lop, ma_mh) to avoid repeated lookups.
+    teacher_cache = {}
+
+    def resolve_teacher_name(item):
+        """Return the display name for the teacher of this schedule item."""
+        teacher_profile = getattr(item, 'giao_vien', None)
+        if teacher_profile:
+            if getattr(teacher_profile, 'ho_ten', None):
+                return teacher_profile.ho_ten
+            if getattr(teacher_profile, 'ma_gv', None):
+                return teacher_profile.ma_gv
+
+        cache_key = None
+        if getattr(item, 'lop', None) and getattr(item, 'ma_mh', None):
+            cache_key = (item.lop, item.ma_mh)
+            if cache_key in teacher_cache:
+                return teacher_cache[cache_key]
+            assignment = PhanCong.query.filter_by(lop=item.lop, ma_mh=item.ma_mh, active=True).first()
+            if assignment:
+                gv_profile = GiaoVien.query.get(assignment.ma_gv)
+                teacher_name = gv_profile.ho_ten if gv_profile and getattr(gv_profile, 'ho_ten', None) else assignment.ma_gv
+                teacher_cache[cache_key] = teacher_name
+                return teacher_name
+            teacher_cache[cache_key] = None
+
+        return item.ma_gv
 
     for item in schedule_items:
         start_min = parse_time_to_minutes(item.gio_bat_dau) or min_start
@@ -544,15 +717,7 @@ def build_week_view(schedule_items):
 
         day_idx, day_label = resolve_day_for_item(item, day_defs, day_lookup)
 
-        teacher_account = getattr(item, 'giao_vien', None)
-        teacher_profile = getattr(teacher_account, 'giao_vien', None) if teacher_account else None
-        teacher_name = None
-        if teacher_profile and getattr(teacher_profile, 'ho_ten', None):
-            teacher_name = teacher_profile.ho_ten
-        elif teacher_account and getattr(teacher_account, 'username', None):
-            teacher_name = teacher_account.username
-        else:
-            teacher_name = item.ma_gv
+        teacher_name = resolve_teacher_name(item)
 
         event_data = {
             'id': item.id,
@@ -617,11 +782,48 @@ def role_required(vai_tro_enum):
         def decorated_function(*args, **kwargs):
             if not current_user.is_authenticated:
                 return redirect(url_for('login'))
-            if current_user.vai_tro != vai_tro_enum:
-                abort(403)
+            if current_user.vai_tro == vai_tro_enum:
+                return f(*args, **kwargs)
+            if current_user.vai_tro == VaiTroEnum.ADMIN and vai_tro_enum != VaiTroEnum.SINHVIEN:
+                return f(*args, **kwargs)
+            abort(403)
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+def admin_required(f):
+    return role_required(VaiTroEnum.ADMIN)(f)
+
+def is_admin_user(user=None):
+    target = user or current_user
+    return getattr(target, 'vai_tro', None) == VaiTroEnum.ADMIN
+
+def get_active_assignments_for_user(user):
+    if not user or is_admin_user(user):
+        return []
+    return PhanCong.query.filter_by(ma_gv=user.username, active=True).all()
+
+def require_assignment(ma_mh, lop, require_edit=False):
+    """Abort 403 if current teacher is not assigned to the given class/course or edit is locked."""
+    if is_admin_user():
+        return
+    assignment = PhanCong.query.filter_by(
+        ma_gv=current_user.username,
+        ma_mh=ma_mh,
+        lop=lop,
+        active=True
+    ).first()
+    if not assignment:
+        abort(403)
+    if require_edit and not assignment.allow_nhap_diem:
+        abort(403)
+
+def build_assignment_scope(user):
+    assignments = get_active_assignments_for_user(user)
+    lop_set = sorted({pc.lop for pc in assignments})
+    course_ids = sorted({pc.ma_mh for pc in assignments})
+    combo_set = {(pc.lop, pc.ma_mh): pc for pc in assignments}
+    return assignments, lop_set, course_ids, combo_set
 
 @app.errorhandler(403)
 def forbidden_page(e):
@@ -643,8 +845,10 @@ def login():
     if current_user.is_authenticated:
         if current_user.vai_tro == VaiTroEnum.SINHVIEN:
             return redirect(url_for('student_dashboard'))
-        else:
+        elif current_user.vai_tro == VaiTroEnum.ADMIN:
             return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('admin_manage_grades'))
 
     if request.method == 'POST':
         username = request.form.get('username')
@@ -656,8 +860,10 @@ def login():
             flash('Đăng nhập thành công!', 'success')
             if user.vai_tro == VaiTroEnum.SINHVIEN:
                 return redirect(url_for('student_dashboard'))
-            elif user.vai_tro == VaiTroEnum.GIAOVIEN:
+            elif user.vai_tro == VaiTroEnum.ADMIN:
                 return redirect(url_for('admin_dashboard'))
+            elif user.vai_tro == VaiTroEnum.GIAOVIEN:
+                return redirect(url_for('admin_manage_grades'))
         else:
             flash('Sai tên đăng nhập hoặc mật khẩu.', 'danger')
 
@@ -837,16 +1043,19 @@ def student_grades():
         if credits_ky > 0:
             semesters_data[ky]['gpa_10'] = semesters_data[ky]['total_points_10'] / credits_ky
             semesters_data[ky]['gpa_4'] = semesters_data[ky]['total_points_4'] / credits_ky
+        semesters_data[ky]['xep_loai'] = classify_gpa_10(semesters_data[ky]['gpa_10'])
 
     # Tính GPA TÍCH LŨY (toàn bộ)
     gpa_10_cumulative = (total_points_10_cumulative / total_credits_cumulative) if total_credits_cumulative > 0 else 0.0
     gpa_4_cumulative = (total_points_4_cumulative / total_credits_cumulative) if total_credits_cumulative > 0 else 0.0
+    gpa_classification = classify_gpa_10(gpa_10_cumulative)
 
     return render_template(
         'student_grades.html',
         semesters_data=semesters_data, # Gửi cấu trúc dữ liệu mới
         gpa_10_cumulative=gpa_10_cumulative,
         gpa_4_cumulative=gpa_4_cumulative,
+        gpa_classification=gpa_classification,
         chart_labels=chart_labels,
         chart_data=chart_data
     )
@@ -1011,7 +1220,7 @@ def student_progress():
 # 4.3. Chức năng của Giáo viên
 @app.route('/admin/dashboard')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN) 
+@admin_required 
 def admin_dashboard():
     """Trang mặc định cho giáo viên - luôn hiển thị danh sách Thông báo chung."""
     announcements = ThongBao.query.order_by(ThongBao.ngay_gui.desc()).limit(15).all()
@@ -1048,13 +1257,39 @@ def admin_dashboard():
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_schedule():
+    allowed_lops = []
+    course_ids = []
     danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
-    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    lop_hoc_tuples = db.session.query(Lop.ma_lop).distinct().order_by(Lop.ma_lop).all()
     danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
 
     selected_lop = request.args.get('lop')
+    edit_id = request.args.get('edit_id', type=int)
+    edit_item = None
+
+    allow_manage_schedule = is_admin_user()
+    if not is_admin_user():
+        _, allowed_lops, course_ids, _ = build_assignment_scope(current_user)
+        danh_sach_lop = [lop for lop in danh_sach_lop if lop in allowed_lops]
+        danh_sach_mon_hoc = [mh for mh in danh_sach_mon_hoc if mh.ma_mh in course_ids]
+        if request.method == 'POST':
+            abort(403)
+        if selected_lop and selected_lop not in allowed_lops:
+            abort(403)
+        if not selected_lop and allowed_lops:
+            selected_lop = allowed_lops[0]
+
+    if edit_id:
+        if not allow_manage_schedule:
+            abort(403)
+        edit_item = LichHoc.query.get(edit_id)
+        if not edit_item:
+            flash('Kh�ng t�m th?y l?ch c?n s?a.', 'warning')
+        else:
+            selected_lop = selected_lop or edit_item.lop
 
     if request.method == 'POST':
+        schedule_id = request.form.get('schedule_id')
         lop = request.form.get('lop')
         tieu_de = (request.form.get('tieu_de') or '').strip()
         ma_mh = request.form.get('ma_mh') or None
@@ -1066,45 +1301,72 @@ def admin_schedule():
         ghi_chu = (request.form.get('ghi_chu') or '').strip() or None
 
         if not lop:
-            flash('Vui lòng chọn hoặc nhập Lớp cho lịch học.', 'danger')
+            flash('Vui l�ng ch?n ho?c nh?p L?p cho l?ch h?c.', 'danger')
             return redirect(url_for('admin_schedule', lop=selected_lop))
 
         if not tieu_de:
-            tieu_de = f'Lịch học {lop}' if not ma_mh else f'{ma_mh} - {lop}'
+            tieu_de = f'L?ch h?c {lop}' if not ma_mh else f'{ma_mh} - {lop}'
 
         ngay_hoc = None
         if ngay_hoc_raw:
             try:
                 ngay_hoc = datetime.strptime(ngay_hoc_raw, '%Y-%m-%d').date()
             except ValueError:
-                flash('Ngày học không hợp lệ. Định dạng chuẩn: YYYY-MM-DD', 'danger')
+                flash('Ng�y h?c kh�ng h?p l?. D?nh d?ng chu?n: YYYY-MM-DD', 'danger')
                 return redirect(url_for('admin_schedule', lop=lop))
 
+        # Pick the teacher assigned to this course/class if available.
+        teacher_username = None
+        if ma_mh and lop:
+            assignment = PhanCong.query.filter_by(lop=lop, ma_mh=ma_mh, active=True).first()
+            if assignment:
+                teacher_username = assignment.ma_gv
+
         try:
-            new_item = LichHoc(
-                tieu_de=tieu_de,
-                lop=lop,
-                ma_mh=ma_mh,
-                ma_gv=current_user.username,
-                thu_trong_tuan=thu_trong_tuan,
-                ngay_hoc=ngay_hoc,
-                gio_bat_dau=gio_bat_dau,
-                gio_ket_thuc=gio_ket_thuc,
-                phong=phong,
-                ghi_chu=ghi_chu
-            )
-            db.session.add(new_item)
-            db.session.commit()
-            flash('Đã thêm lịch học/giảng dạy.', 'success')
+            if schedule_id:
+                item = LichHoc.query.get(schedule_id)
+                if not item:
+                    flash('Kh�ng t�m th?y l?ch c?n c?p nh?t.', 'danger')
+                    return redirect(url_for('admin_schedule', lop=lop))
+                item.tieu_de = tieu_de
+                item.lop = lop
+                item.ma_mh = ma_mh
+                item.ma_gv = teacher_username or item.ma_gv
+                item.thu_trong_tuan = thu_trong_tuan
+                item.ngay_hoc = ngay_hoc
+                item.gio_bat_dau = gio_bat_dau
+                item.gio_ket_thuc = gio_ket_thuc
+                item.phong = phong
+                item.ghi_chu = ghi_chu
+                db.session.commit()
+                flash('Da c?p nh?t l?ch h?c/gi?ng d?y.', 'success')
+            else:
+                new_item = LichHoc(
+                    tieu_de=tieu_de,
+                    lop=lop,
+                    ma_mh=ma_mh,
+                    ma_gv=teacher_username,
+                    thu_trong_tuan=thu_trong_tuan,
+                    ngay_hoc=ngay_hoc,
+                    gio_bat_dau=gio_bat_dau,
+                    gio_ket_thuc=gio_ket_thuc,
+                    phong=phong,
+                    ghi_chu=ghi_chu
+                )
+                db.session.add(new_item)
+                db.session.commit()
+                flash('Da th�m l?ch h?c/gi?ng d?y.', 'success')
             return redirect(url_for('admin_schedule', lop=lop))
         except Exception as e:
             db.session.rollback()
-            flash(f'Lỗi khi lưu lịch học: {e}', 'danger')
+            flash(f'L?i khi luu l?ch h?c: {e}', 'danger')
             return redirect(url_for('admin_schedule'))
 
     schedule_query = LichHoc.query
     if selected_lop:
         schedule_query = schedule_query.filter_by(lop=selected_lop)
+    if not is_admin_user() and allowed_lops:
+        schedule_query = schedule_query.filter(LichHoc.lop.in_(allowed_lops))
 
     schedule_items = schedule_query.order_by(
         LichHoc.ngay_hoc.asc(),
@@ -1121,13 +1383,15 @@ def admin_schedule():
         danh_sach_lop=danh_sach_lop,
         schedule_items=schedule_items,
         selected_lop=selected_lop,
-        week_view=week_view
+        week_view=week_view,
+        allow_manage_schedule=allow_manage_schedule,
+        edit_item=edit_item
     )
 
 
 @app.route('/admin/schedule/<int:schedule_id>/delete', methods=['POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_delete_schedule(schedule_id):
     schedule = LichHoc.query.get_or_404(schedule_id)
     if schedule.ma_gv and schedule.ma_gv != current_user.username:
@@ -1146,12 +1410,21 @@ def admin_delete_schedule(schedule_id):
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_assignments():
-    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
-    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
-    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
-
     selected_lop = request.args.get('lop')
     show_all = request.args.get('all') == '1'
+
+    if is_admin_user():
+        lop_hoc_tuples = db.session.query(Lop.ma_lop).distinct().order_by(Lop.ma_lop).all()
+        danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+        danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+        phan_cong_list = []
+    else:
+        phan_cong_list = get_active_assignments_for_user(current_user)
+        danh_sach_lop = sorted({pc.lop for pc in phan_cong_list})
+        danh_sach_mon_hoc = [pc.mon_hoc_ref for pc in phan_cong_list if pc.mon_hoc_ref]
+        show_all = False
+        if selected_lop and selected_lop not in danh_sach_lop:
+            abort(403)
 
     if request.method == 'POST':
         tieu_de = (request.form.get('tieu_de') or '').strip()
@@ -1164,6 +1437,14 @@ def admin_assignments():
         if not tieu_de or not noi_dung or not lop_nhan:
             flash('Tiêu đề, nội dung và Lớp nhận là bắt buộc.', 'danger')
             return redirect(url_for('admin_assignments', lop=selected_lop))
+
+        if not is_admin_user():
+            if lop_nhan not in danh_sach_lop:
+                abort(403)
+            if ma_mh:
+                allowed_mh = {pc.ma_mh for pc in phan_cong_list if pc.lop == lop_nhan}
+                if ma_mh not in allowed_mh:
+                    abort(403)
 
         han_nop = None
         if han_nop_raw:
@@ -1193,7 +1474,7 @@ def admin_assignments():
             return redirect(url_for('admin_assignments'))
 
     assignments_query = BaiTap.query
-    if not show_all:
+    if not is_admin_user() or not show_all:
         assignments_query = assignments_query.filter(BaiTap.ma_gv == current_user.username)
     if selected_lop:
         assignments_query = assignments_query.filter(BaiTap.lop_nhan == selected_lop)
@@ -1220,7 +1501,7 @@ def admin_assignments():
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_delete_assignment(assignment_id):
     assignment = BaiTap.query.get_or_404(assignment_id)
-    if assignment.ma_gv and assignment.ma_gv != current_user.username:
+    if not is_admin_user() and assignment.ma_gv and assignment.ma_gv != current_user.username:
         abort(403)
     try:
         db.session.delete(assignment)
@@ -1234,7 +1515,7 @@ def admin_delete_assignment(assignment_id):
 
 @app.route('/admin/progress')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_progress():
     lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
     danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
@@ -1352,7 +1633,7 @@ def admin_manage_teachers():
 
 @app.route('/admin/teachers/create', methods=['POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_create_teacher():
     ma_gv = (request.form.get('ma_gv') or '').strip()
     ho_ten = (request.form.get('ho_ten') or '').strip()
@@ -1492,6 +1773,13 @@ def admin_manage_students():
     filter_khoa = request.args.get('khoa', '')
 
     query = SinhVien.query
+    if not is_admin_user():
+        _, allowed_lops, _, _ = build_assignment_scope(current_user)
+        if allowed_lops:
+            query = query.filter(SinhVien.lop.in_(allowed_lops))
+        else:
+            query = query.filter(db.text("0=1"))
+
     if search_ma_sv:
         query = query.filter(SinhVien.ma_sv.ilike(f'%{search_ma_sv}%'))
     if search_ho_ten:
@@ -1501,12 +1789,14 @@ def admin_manage_students():
     if filter_khoa:
         query = query.filter(SinhVien.khoa == filter_khoa)
 
-    students = query.order_by(SinhVien.ma_sv).all()
+    students = query.order_by(SinhVien.lop, SinhVien.ma_sv).all()
 
-    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    lop_hoc_tuples = db.session.query(Lop.ma_lop).distinct().order_by(Lop.ma_lop).all()
     danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+    if not is_admin_user():
+        danh_sach_lop = [lop for lop in danh_sach_lop if lop in (allowed_lops or [])]
 
-    khoa_tuples = db.session.query(SinhVien.khoa).distinct().order_by(SinhVien.khoa).all()
+    khoa_tuples = db.session.query(Khoa.ma_khoa).distinct().order_by(Khoa.ma_khoa).all()
     danh_sach_khoa = [khoa[0] for khoa in khoa_tuples if khoa[0]]
 
     return render_template(
@@ -1519,12 +1809,13 @@ def admin_manage_students():
             'ho_ten': search_ho_ten,
             'lop': filter_lop,
             'khoa': filter_khoa
-        }
+        },
+        allow_manage=is_admin_user()
     )
 
 @app.route('/admin/students/add', methods=['GET', 'POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_add_student():
     if request.method == 'POST':
         ma_sv = request.form.get('ma_sv')
@@ -1570,7 +1861,7 @@ def admin_add_student():
 
 @app.route('/admin/students/edit/<ma_sv>', methods=['GET', 'POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_edit_student(ma_sv):
     sv = SinhVien.query.get_or_404(ma_sv)
 
@@ -1599,11 +1890,15 @@ def admin_edit_student(ma_sv):
 
 @app.route('/admin/students/delete/<ma_sv>', methods=['POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_delete_student(ma_sv):
     sv = SinhVien.query.get_or_404(ma_sv)
     try:
+        KetQua.query.filter_by(ma_sv=ma_sv).delete(synchronize_session=False)
+        account = TaiKhoan.query.get(ma_sv)
         db.session.delete(sv) # Cascade delete sẽ xóa TaiKhoan và KetQua
+        if account:
+            db.session.delete(account)
         db.session.commit()
         flash('Đã xóa sinh viên và tài khoản liên quan thành công!', 'success')
     except Exception as e:
@@ -1614,7 +1909,7 @@ def admin_delete_student(ma_sv):
 # 4.4. Quản lý Môn học
 @app.route('/admin/courses')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_manage_courses():
     # Sắp xếp theo học kỳ, rồi mới đến mã môn
     courses = MonHoc.query.order_by(MonHoc.hoc_ky, MonHoc.ma_mh).all() 
@@ -1622,7 +1917,7 @@ def admin_manage_courses():
 
 @app.route('/admin/courses/add', methods=['GET', 'POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_add_course():
     if request.method == 'POST':
         ma_mh = request.form.get('ma_mh')
@@ -1671,7 +1966,7 @@ def admin_add_course():
 
 @app.route('/admin/courses/edit/<ma_mh>', methods=['GET', 'POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_edit_course(ma_mh):
     course = MonHoc.query.get_or_404(ma_mh)
 
@@ -1724,7 +2019,7 @@ def admin_edit_course(ma_mh):
 
 @app.route('/admin/courses/delete/<ma_mh>', methods=['POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_delete_course(ma_mh):
     course = MonHoc.query.get_or_404(ma_mh)
     try:
@@ -1736,29 +2031,128 @@ def admin_delete_course(ma_mh):
         flash(f'Lỗi khi xóa môn học: {e}', 'danger')
     return redirect(url_for('admin_manage_courses'))
 
+# Phân công môn/lớp cho giáo viên (Admin)
+@app.route('/admin/teacher-assignments', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_manage_teacher_assignments():
+    teachers = TaiKhoan.query.filter(TaiKhoan.vai_tro == VaiTroEnum.GIAOVIEN).order_by(TaiKhoan.username).all()
+    courses = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+
+    if request.method == 'POST':
+        ma_gv = (request.form.get('ma_gv') or '').strip()
+        ma_mh = (request.form.get('ma_mh') or '').strip()
+        lop = (request.form.get('lop') or '').strip()
+        allow_nhap = bool(request.form.get('allow_nhap_diem'))
+
+        if not ma_gv or not ma_mh or not lop:
+            flash('Vui lòng chọn đầy đủ Giảng viên, Môn và Lớp.', 'danger')
+            return redirect(url_for('admin_manage_teacher_assignments'))
+
+        if not TaiKhoan.query.get(ma_gv) or TaiKhoan.query.get(ma_gv).vai_tro != VaiTroEnum.GIAOVIEN:
+            flash('Giảng viên không hợp lệ.', 'danger')
+            return redirect(url_for('admin_manage_teacher_assignments'))
+        if not MonHoc.query.get(ma_mh):
+            flash('Môn học không hợp lệ.', 'danger')
+            return redirect(url_for('admin_manage_teacher_assignments'))
+        if lop not in danh_sach_lop:
+            flash('Lớp không hợp lệ.', 'danger')
+            return redirect(url_for('admin_manage_teacher_assignments'))
+
+        existing = PhanCong.query.filter_by(ma_gv=ma_gv, ma_mh=ma_mh, lop=lop).first()
+        if existing:
+            existing.allow_nhap_diem = allow_nhap
+            existing.active = True
+            flash('Cập nhật phân công và trạng thái nhập điểm.', 'info')
+        else:
+            new_assign = PhanCong(ma_gv=ma_gv, ma_mh=ma_mh, lop=lop, allow_nhap_diem=allow_nhap, active=True)
+            db.session.add(new_assign)
+            flash('Đã tạo phân công giảng dạy.', 'success')
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi lưu phân công: {e}', 'danger')
+        return redirect(url_for('admin_manage_teacher_assignments'))
+
+    assignments = PhanCong.query.order_by(PhanCong.lop, PhanCong.ma_mh, PhanCong.ma_gv).all()
+    return render_template(
+        'admin_manage_teacher_assignments.html',
+        teachers=teachers,
+        courses=courses,
+        danh_sach_lop=danh_sach_lop,
+        assignments=assignments
+    )
+
+@app.route('/admin/teacher-assignments/<int:assignment_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_teacher_assignment(assignment_id):
+    assignment = PhanCong.query.get_or_404(assignment_id)
+    assignment.allow_nhap_diem = not assignment.allow_nhap_diem
+    db.session.commit()
+    flash('Đã cập nhật quyền nhập điểm.', 'success')
+    return redirect(url_for('admin_manage_teacher_assignments'))
+
+@app.route('/admin/teacher-assignments/<int:assignment_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_teacher_assignment(assignment_id):
+    assignment = PhanCong.query.get_or_404(assignment_id)
+    db.session.delete(assignment)
+    db.session.commit()
+    flash('Đã thu hồi phân công.', 'success')
+    return redirect(url_for('admin_manage_teacher_assignments'))
+
 # 4.5. Quản lý Điểm
 # === THAY THẾ HÀM admin_manage_grades CŨ BẰNG HÀM NÀY ===
 @app.route('/admin/grades', methods=['GET']) # Chỉ dùng GET
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_manage_grades():
-    # Lấy danh sách Lớp và Môn học cho dropdown
-    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
-    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
-    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
-
-    # Lấy Lớp và Môn học được chọn từ URL (nếu có)
     selected_lop = request.args.get('lop', None)
     selected_mh_id = request.args.get('ma_mh', None)
+    selected_assignment = None
+    can_edit_grades = True
+
+    if is_admin_user():
+        lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+        danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+        danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    else:
+        assignments, danh_sach_lop, course_ids, combo_map = build_assignment_scope(current_user)
+        danh_sach_mon_hoc = [MonHoc.query.get(mid) for mid in course_ids if MonHoc.query.get(mid)]
+        if not danh_sach_lop or not danh_sach_mon_hoc:
+            flash('Bạn chưa được phân công lớp/môn nào.', 'warning')
+            return render_template(
+                'admin_manage_grades.html',
+                danh_sach_lop=[],
+                danh_sach_mon_hoc=[],
+                selected_lop=None,
+                selected_mh_id=None,
+                selected_mon_hoc=None,
+                grades_data=[],
+                selected_assignment=None,
+                can_edit_grades=False
+            )
+        if selected_lop and selected_lop not in danh_sach_lop:
+            abort(403)
+        if selected_mh_id and selected_mh_id not in course_ids:
+            abort(403)
+        if selected_lop and selected_mh_id:
+            selected_assignment = combo_map.get((selected_lop, selected_mh_id))
+            if not selected_assignment:
+                abort(403)
+            can_edit_grades = bool(selected_assignment.allow_nhap_diem)
 
     grades_data = []
     selected_mon_hoc = None
 
-    # Nếu Lớp và Môn học đã được chọn -> Truy vấn điểm chi tiết
     if selected_lop and selected_mh_id:
         selected_mon_hoc = MonHoc.query.get(selected_mh_id)
         if selected_mon_hoc:
-            # Lấy thông tin SV và điểm của họ cho môn này
             grades_data = db.session.query(
                 SinhVien.ma_sv,
                 SinhVien.ho_ten,
@@ -1768,20 +2162,22 @@ def admin_manage_grades():
                 KetQua.diem_cuoi_ky,
                 KetQua.diem_tong_ket,
                 KetQua.diem_chu
-            ).select_from(SinhVien).outerjoin( # LEFT JOIN để lấy cả SV chưa có điểm
+            ).select_from(SinhVien).outerjoin(
                 KetQua, and_(SinhVien.ma_sv == KetQua.ma_sv, KetQua.ma_mh == selected_mh_id)
             ).filter(
-                SinhVien.lop == selected_lop # Lọc theo lớp
+                SinhVien.lop == selected_lop
             ).order_by(SinhVien.ma_sv).all()
 
     return render_template(
         'admin_manage_grades.html',
         danh_sach_lop=danh_sach_lop,
         danh_sach_mon_hoc=danh_sach_mon_hoc,
-        selected_lop=selected_lop,           # Gửi lớp đã chọn
-        selected_mh_id=selected_mh_id,       # Gửi mã môn đã chọn
-        selected_mon_hoc=selected_mon_hoc, # Gửi thông tin môn học đã chọn
-        grades_data=grades_data            # Gửi danh sách điểm chi tiết
+        selected_lop=selected_lop,
+        selected_mh_id=selected_mh_id,
+        selected_mon_hoc=selected_mon_hoc,
+        grades_data=grades_data,
+        selected_assignment=selected_assignment,
+        can_edit_grades=can_edit_grades
     )
 # =======================================================
 
@@ -1789,6 +2185,7 @@ def admin_manage_grades():
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_enter_grades(lop, ma_mh):
+    require_assignment(ma_mh, lop, require_edit=True)
     mon_hoc = MonHoc.query.get_or_404(ma_mh)
     sinh_vien_list = SinhVien.query.filter_by(lop=lop).order_by(SinhVien.ma_sv).all()
 
@@ -1841,21 +2238,12 @@ def admin_save_grades():
     try:
         ma_mh = request.form.get('ma_mh')
         lop = request.form.get('lop') # Lấy lại để redirect
+        require_assignment(ma_mh, lop, require_edit=True)
         updated_count = 0
         created_count = 0
 
         # Dữ liệu form sẽ có dạng: diem_cc_MaSV, diem_th_MaSV, diem_gk_MaSV, diem_ck_MaSV
         scores_by_sv = {} # Gom điểm của từng SV vào dict
-
-        def parse_score(raw_value):
-            """Chuyển chuỗi điểm nhập (hỗ trợ dấu phẩy) sang float, rỗng trả None."""
-            if raw_value is None:
-                return None
-            cleaned = str(raw_value).strip()
-            if not cleaned:
-                return None
-            cleaned = cleaned.replace(',', '.')
-            return float(cleaned)
 
         # 1. Gom điểm từ form vào dict
         for key, value in request.form.items():
@@ -1869,12 +2257,13 @@ def admin_save_grades():
                         scores_by_sv[ma_sv] = {'cc': None, 'th': None, 'gk': None, 'ck': None}
 
                     try:
-                        score_float = parse_score(value)
+                        score_float, error_code = normalize_score_value(value)
+                        if error_code:
+                            reason = "phải nằm trong khoảng 0-10" if error_code == 'out_of_range' else "không đúng định dạng"
+                            flash(f'Lỗi: Điểm "{value}" ({score_type}) của SV {ma_sv} {reason}. Giá trị này sẽ bị bỏ qua.', 'warning')
+                            continue
                         if score_float is None:
                             continue
-
-                        if not (0 <= score_float <= 10):
-                            raise ValueError("Điểm không hợp lệ 0-10")
 
                         if score_type in scores_by_sv[ma_sv]:
                             scores_by_sv[ma_sv][score_type] = score_float
@@ -2008,13 +2397,13 @@ def calculate_gpa_4_expression():
 # ==================================================
 @app.route('/admin/reports')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_reports_index():
     return render_template('admin_reports_index.html')
 
 @app.route('/admin/reports/high_gpa')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_report_high_gpa():
     GPA4_THRESHOLD = 3.0
     gpa_10_expression = calculate_gpa_expression()
@@ -2068,7 +2457,7 @@ def admin_report_high_gpa():
 
 @app.route('/admin/reports/missing_grade', methods=['GET'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_report_missing_grade():
     danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
     selected_mh_id = request.args.get('ma_mh')
@@ -2091,7 +2480,7 @@ def admin_report_missing_grade():
 
 @app.route('/admin/reports/class_gpa', methods=['GET'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_report_class_gpa():
     lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
     danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
@@ -2155,7 +2544,7 @@ def admin_report_class_gpa():
 # === THÊM BÁO CÁO 4: PHÂN BỐ ĐIỂM ===
 @app.route('/admin/reports/score_distribution', methods=['GET'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_report_score_distribution():
     # Lấy danh sách môn học cho dropdown
     danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
@@ -2219,6 +2608,9 @@ def admin_report_score_distribution():
 def admin_send_notification():
     lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
     danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+    if not is_admin_user():
+        _, allowed_lops, _, _ = build_assignment_scope(current_user)
+        danh_sach_lop = [lop for lop in danh_sach_lop if lop in allowed_lops]
 
     if request.method == 'POST':
         try:
@@ -2229,6 +2621,8 @@ def admin_send_notification():
             if not lop_nhan or not tieu_de or not noi_dung:
                 flash('Vui lòng điền đầy đủ Lớp, Tiêu đề và Nội dung.', 'danger')
                 return redirect(url_for('admin_send_notification'))
+            if not is_admin_user() and lop_nhan not in danh_sach_lop:
+                abort(403)
 
             new_notification = ThongBao(
                 tieu_de=tieu_de,
@@ -2250,7 +2644,7 @@ def admin_send_notification():
 # 4.8. Nhập Excel Sinh viên
 @app.route('/admin/import_students', methods=['GET', 'POST'])
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_import_students():
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -2261,9 +2655,11 @@ def admin_import_students():
             flash('Chưa chọn tệp.', 'danger')
             return redirect(request.url)
 
-        if file and file.filename.endswith(('.xls', '.xlsx')):
+        filename = (file.filename or '').lower()
+        if file and filename.endswith(('.xls', '.xlsx')):
             try:
                 df = pd.read_excel(file)
+                df.columns = [str(col).strip().lower() for col in df.columns]
                 required_columns = ['ma_sinh_vien', 'ten_sinh_vien', 'password', 'role']
                 if not all(col in df.columns for col in required_columns):
                     flash(f'Lỗi: File Excel phải chứa các cột: {", ".join(required_columns)}', 'danger')
@@ -2316,6 +2712,9 @@ def admin_import_students():
                 flash(f'Đã xảy ra lỗi nghiêm trọng khi đọc file: {e}', 'danger')
 
             return redirect(url_for('admin_manage_students'))
+        else:
+            flash('Lỗi: Định dạng file không được hỗ trợ. Chỉ chấp nhận .xls hoặc .xlsx', 'danger')
+            return redirect(request.url)
 
     return render_template('admin_import_students.html')
 
@@ -2325,7 +2724,19 @@ def admin_import_students():
 @login_required
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_import_grades():
-    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    assignments = []
+    allowed_lops_by_course = {}
+    if is_admin_user():
+        danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    else:
+        assignments = get_active_assignments_for_user(current_user)
+        course_ids = {pc.ma_mh for pc in assignments}
+        for pc in assignments:
+            allowed_lops_by_course.setdefault(pc.ma_mh, set()).add(pc.lop)
+        if not course_ids:
+            flash('Bạn chưa được phân công môn học nào để nhập điểm.', 'warning')
+            return render_template('admin_import_grades.html', danh_sach_mon_hoc=[])
+        danh_sach_mon_hoc = MonHoc.query.filter(MonHoc.ma_mh.in_(course_ids)).order_by(MonHoc.ten_mh).all()
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -2337,92 +2748,114 @@ def admin_import_grades():
             flash('Vui lòng chọn Môn học và tệp Excel.', 'danger')
             return redirect(request.url)
 
-        if file and file.filename.endswith(('.xls', '.xlsx')):
-            try:
-                df = pd.read_excel(file)
-                # Yêu cầu 4 cột: ma_sv và 3 điểm thành phần
-                required_columns = ['ma_sinh_vien', 'diem_chuyen_can', 'diem_thuc_hanh', 'diem_giua_ky', 'diem_cuoi_ky']
-                if not all(col in df.columns for col in required_columns):
-                    flash(f'Lỗi: File Excel phải chứa các cột: {", ".join(required_columns)}', 'danger')
-                    return redirect(request.url)
+        filename = (file.filename or '').lower()
+        if not filename.endswith(('.xls', '.xlsx')):
+            flash('Lỗi: Định dạng file không được hỗ trợ. Chỉ chấp nhận .xls hoặc .xlsx', 'danger')
+            return redirect(request.url)
 
-                updated_count = 0
-                created_count = 0
-                errors = []
-                skipped_count = 0
-                for index, row in df.iterrows():
-                    ma_sv = str(row['ma_sinh_vien']).strip() if pd.notna(row['ma_sinh_vien']) else None
-                    if not ma_sv: skipped_count += 1; continue
+        course = MonHoc.query.get(selected_mh)
+        if not course:
+            flash('Lỗi: Môn học không tồn tại.', 'danger')
+            return redirect(request.url)
+        if not is_admin_user():
+            if selected_mh not in allowed_lops_by_course:
+                abort(403)
+            editable_lops = {pc.lop for pc in assignments if pc.ma_mh == selected_mh and pc.allow_nhap_diem}
+            if not editable_lops:
+                abort(403)
 
-                    # Lấy và validate từng điểm thành phần
-                    diem_cc, diem_th, diem_gk, diem_ck = None, None, None, None
-                    valid_scores = True
-                    for col_name, score_var_name in [('diem_chuyen_can', 'diem_cc'), ('diem_thuc_hanh', 'diem_th'), ('diem_giua_ky', 'diem_gk'), ('diem_cuoi_ky', 'diem_ck')]:
-                        score_val = row.get(col_name, None)
-                        temp_score = None
-                        if pd.notna(score_val): # Chỉ xử lý nếu ô không trống
-                            try:
-                                temp_score = float(score_val)
-                                if not (0 <= temp_score <= 10):
-                                    raise ValueError("Điểm không hợp lệ")
-                                # Gán giá trị hợp lệ
-                                if score_var_name == 'diem_cc': diem_cc = temp_score
-                                elif score_var_name == 'diem_th': diem_th = temp_score
-                                elif score_var_name == 'diem_gk': diem_gk = temp_score
-                                elif score_var_name == 'diem_ck': diem_ck = temp_score
-                            except (ValueError, TypeError):
-                                errors.append(f"Dòng {index+2}: Điểm '{col_name}' ('{score_val}') của SV '{ma_sv}' không hợp lệ. Bản ghi này có thể không được tính điểm tổng kết.")
-                                valid_scores = False # Đánh dấu nếu có điểm thành phần không hợp lệ
-                                # Không gán giá trị không hợp lệ
-                        # else: # Giữ None nếu ô trống
+        try:
+            df = pd.read_excel(file)
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            required_columns = ['ma_sinh_vien', 'diem_chuyen_can', 'diem_thuc_hanh', 'diem_giua_ky', 'diem_cuoi_ky']
+            if not all(col in df.columns for col in required_columns):
+                flash(f'Lỗi: File Excel phải chứa các cột: {", ".join(required_columns)}', 'danger')
+                return redirect(request.url)
 
-                    student_exists = SinhVien.query.get(ma_sv)
-                    if not student_exists:
-                        errors.append(f"Dòng {index+2}: Mã SV '{ma_sv}' không tồn tại. Bỏ qua.")
+            updated_count = 0
+            created_count = 0
+            errors = []
+            skipped_count = 0
+
+            for index, row in df.iterrows():
+                raw_ma_sv = row.get('ma_sinh_vien')
+                ma_sv = str(raw_ma_sv).strip() if pd.notna(raw_ma_sv) else None
+                if not ma_sv:
+                    skipped_count += 1
+                    continue
+
+                student_exists = SinhVien.query.get(ma_sv)
+                if not student_exists:
+                    errors.append(f"Dòng {index+2}: Mã SV '{ma_sv}' không tồn tại. Bỏ qua.")
+                    continue
+                if not is_admin_user():
+                    if student_exists.lop not in allowed_lops_by_course.get(selected_mh, set()):
+                        errors.append(f"Dòng {index+2}: Sinh viên '{ma_sv}' không thuộc lớp được phân công cho bạn. Bỏ qua.")
+                        continue
+                    if student_exists.lop not in editable_lops:
+                        errors.append(f"Dòng {index+2}: Quyền nhập điểm lớp {student_exists.lop} đang bị khóa. Bỏ qua.")
                         continue
 
-                    existing_grade = KetQua.query.get((ma_sv, selected_mh))
-                    if existing_grade:
-                         # Chỉ update nếu có điểm mới từ file và khác điểm cũ
-                         changed = False
-                         if diem_cc is not None and existing_grade.diem_chuyen_can != diem_cc:
-                              existing_grade.diem_chuyen_can = diem_cc; changed=True
-                         if diem_th is not None and existing_grade.diem_thuc_hanh != diem_th:
-                              existing_grade.diem_thuc_hanh = diem_th; changed=True
-                         if diem_gk is not None and existing_grade.diem_giua_ky != diem_gk:
-                              existing_grade.diem_giua_ky = diem_gk; changed=True
-                         if diem_ck is not None and existing_grade.diem_cuoi_ky != diem_ck:
-                              existing_grade.diem_cuoi_ky = diem_ck; changed=True
+                scores = {'cc': None, 'th': None, 'gk': None, 'ck': None}
+                for col_name, key in [('diem_chuyen_can', 'cc'), ('diem_thuc_hanh', 'th'), ('diem_giua_ky', 'gk'), ('diem_cuoi_ky', 'ck')]:
+                    score_val, error_code = normalize_score_value(row.get(col_name))
+                    if error_code == 'invalid_format':
+                        errors.append(f"Dòng {index+2}: Điểm '{col_name}' của SV '{ma_sv}' không đúng định dạng (hỗ trợ cả dấu phẩy).")
+                    elif error_code == 'out_of_range':
+                        errors.append(f"Dòng {index+2}: Điểm '{col_name}' của SV '{ma_sv}' phải nằm trong khoảng 0-10.")
 
-                         if changed:
-                              existing_grade.calculate_final_score() # Tính lại điểm TK
-                              updated_count += 1
-                    else:
-                        new_grade = KetQua(ma_sv=ma_sv, ma_mh=selected_mh,
-                                           diem_chuyen_can=diem_cc,
-                                           diem_thuc_hanh=diem_th,
-                                           diem_giua_ky=diem_gk,
-                                           diem_cuoi_ky=diem_ck)
-                        new_grade.calculate_final_score() # Tính điểm TK
-                        db.session.add(new_grade)
-                        created_count += 1
+                    if score_val is not None:
+                        scores[key] = score_val
 
-                if updated_count > 0 or created_count > 0:
-                     db.session.commit()
-                     flash(f'Nhập điểm từ Excel thành công! (Thêm mới: {created_count}, Cập nhật: {updated_count}, Bỏ qua: {skipped_count})', 'success')
+                existing_grade = KetQua.query.get((ma_sv, selected_mh))
+                if existing_grade:
+                    changed = False
+                    if scores['cc'] is not None and existing_grade.diem_chuyen_can != scores['cc']:
+                        existing_grade.diem_chuyen_can = scores['cc']
+                        changed = True
+                    if scores['th'] is not None and existing_grade.diem_thuc_hanh != scores['th']:
+                        existing_grade.diem_thuc_hanh = scores['th']
+                        changed = True
+                    if scores['gk'] is not None and existing_grade.diem_giua_ky != scores['gk']:
+                        existing_grade.diem_giua_ky = scores['gk']
+                        changed = True
+                    if scores['ck'] is not None and existing_grade.diem_cuoi_ky != scores['ck']:
+                        existing_grade.diem_cuoi_ky = scores['ck']
+                        changed = True
+
+                    if changed:
+                        existing_grade.calculate_final_score(mon_hoc=course)
+                        updated_count += 1
                 else:
-                     flash('Không có điểm mới hoặc thay đổi nào được nhập.', 'info')
+                    if not any(v is not None for v in scores.values()):
+                        skipped_count += 1
+                        continue
 
-                for error in errors: flash(error, 'warning')
+                    new_grade = KetQua(
+                        ma_sv=ma_sv,
+                        ma_mh=selected_mh,
+                        diem_chuyen_can=scores['cc'],
+                        diem_thuc_hanh=scores['th'],
+                        diem_giua_ky=scores['gk'],
+                        diem_cuoi_ky=scores['ck']
+                    )
+                    new_grade.calculate_final_score(mon_hoc=course)
+                    db.session.add(new_grade)
+                    created_count += 1
 
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Đã xảy ra lỗi nghiêm trọng khi đọc hoặc xử lý file: {e}', 'danger')
+            if updated_count > 0 or created_count > 0:
+                db.session.commit()
+                flash(f'Nhập điểm từ Excel thành công! (Thêm mới: {created_count}, Cập nhật: {updated_count}, Bỏ qua: {skipped_count})', 'success')
+            else:
+                flash('Không có điểm mới hoặc thay đổi nào được nhập.', 'info')
 
-            return redirect(url_for('admin_manage_grades'))
-        else:
-             flash('Lỗi: Định dạng file không được hỗ trợ. Chỉ chấp nhận .xls hoặc .xlsx', 'danger')
-             return redirect(request.url)
+            for error in errors: flash(error, 'warning')
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Đã xảy ra lỗi nghiêm trọng khi đọc hoặc xử lý file: {e}', 'danger')
+
+        return redirect(url_for('admin_manage_grades'))
 
     return render_template('admin_import_grades.html', danh_sach_mon_hoc=danh_sach_mon_hoc)
 
@@ -2433,16 +2866,22 @@ def admin_import_grades():
 @role_required(VaiTroEnum.GIAOVIEN)
 def admin_export_grades():
     """Trang hiển thị dropdown để chọn Lớp VÀ Môn học."""
-    # Lấy danh sách lớp
-    lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
-    danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
-    # Lấy danh sách môn học
-    danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    if is_admin_user():
+        lop_hoc_tuples = db.session.query(SinhVien.lop).distinct().order_by(SinhVien.lop).all()
+        danh_sach_lop = [lop[0] for lop in lop_hoc_tuples if lop[0]]
+        danh_sach_mon_hoc = MonHoc.query.order_by(MonHoc.ten_mh).all()
+    else:
+        _, danh_sach_lop, course_ids, _ = build_assignment_scope(current_user)
+        danh_sach_mon_hoc = [MonHoc.query.get(mid) for mid in course_ids if MonHoc.query.get(mid)]
+        if not danh_sach_lop or not danh_sach_mon_hoc:
+            flash('Bạn chưa được phân công lớp/môn nào.', 'warning')
+            return redirect(url_for('admin_manage_grades'))
 
     return render_template(
         'admin_export_grades.html',
         danh_sach_lop=danh_sach_lop,
-        danh_sach_mon_hoc=danh_sach_mon_hoc # Gửi thêm danh sách môn học
+        danh_sach_mon_hoc=danh_sach_mon_hoc,
+        allow_all=is_admin_user()
     )
 # ========================================================
 
@@ -2454,8 +2893,17 @@ def admin_perform_export():
     """Xử lý logic và trả về file Excel điểm DẠNG DÀI (đã lọc)."""
     try:
         # Lấy giá trị từ form
-        selected_lop = request.form.get('lop')
-        selected_mh_id = request.form.get('ma_mh')
+        selected_lop = (request.form.get('lop') or '').strip()
+        selected_mh_id = (request.form.get('ma_mh') or '').strip()
+        if selected_lop.lower() == 'all':
+            selected_lop = ''
+        if selected_mh_id.lower() == 'all':
+            selected_mh_id = ''
+        if not is_admin_user():
+            if not selected_lop or not selected_mh_id:
+                flash('Giáo viên cần chọn chính xác Lớp và Môn được phân công để xuất.', 'danger')
+                return redirect(url_for('admin_export_grades'))
+            require_assignment(selected_mh_id, selected_lop, require_edit=False)
 
         # Bắt đầu truy vấn cơ sở
         query = db.session.query(
@@ -2464,6 +2912,7 @@ def admin_perform_export():
             SinhVien.lop,
             MonHoc.ma_mh,
             MonHoc.ten_mh,
+            MonHoc.hoc_ky,
             MonHoc.so_tin_chi,
             KetQua.diem_chuyen_can,
             KetQua.diem_thuc_hanh,
@@ -2497,7 +2946,7 @@ def admin_perform_export():
              query = query.filter(KetQua.ma_sv != None) # Đảm bảo có kết quả
 
         # Sắp xếp kết quả
-        query_results = query.order_by(SinhVien.lop, SinhVien.ma_sv, MonHoc.ma_mh).all()
+        query_results = query.order_by(SinhVien.lop, MonHoc.hoc_ky, MonHoc.ma_mh, SinhVien.ma_sv).all()
 
         if not query_results:
             flash(f'Không tìm thấy dữ liệu điểm nào cho lựa chọn của bạn.', 'warning')
@@ -2516,6 +2965,7 @@ def admin_perform_export():
                 'Lớp': row.lop,
                 'Mã MH': row.ma_mh,
                 'Tên Môn học': row.ten_mh,
+                'Học kỳ': getattr(row, 'hoc_ky', None),
                 'Số TC': row.so_tin_chi,
                 'Điểm CC': row.diem_chuyen_can,
                 'Điểm TH': getattr(row, 'diem_thuc_hanh', None),
@@ -2554,7 +3004,7 @@ def admin_perform_export():
 # 4.11. Xuất Excel Danh sách Sinh viên
 @app.route('/admin/export_students_excel')
 @login_required
-@role_required(VaiTroEnum.GIAOVIEN)
+@admin_required
 def admin_export_students_excel():
     try:
         search_ma_sv = request.args.get('ma_sv', '')
@@ -2568,7 +3018,7 @@ def admin_export_students_excel():
         if filter_lop: query = query.filter(SinhVien.lop == filter_lop)
         if filter_khoa: query = query.filter(SinhVien.khoa == filter_khoa)
 
-        students = query.order_by(SinhVien.ma_sv).all()
+        students = query.order_by(SinhVien.lop, SinhVien.ma_sv).all()
         if not students:
             flash('Không có dữ liệu sinh viên nào để xuất.', 'warning')
             return redirect(url_for('admin_manage_students'))
@@ -2625,6 +3075,8 @@ if __name__ == '__main__':
         # Tạo tất cả các bảng nếu chưa tồn tại
         db.create_all()
         ensure_teacher_profile_columns()
+        ensure_reference_tables()
+        ensure_default_admin_account()
         
         # === CẬP NHẬT LOGIC TẠO TÀI KHOẢN MẪU ===
         if not TaiKhoan.query.filter_by(username='giaovien01').first():
@@ -2652,3 +3104,4 @@ if __name__ == '__main__':
     # Tắt debug khi deploy thực tế
     # Bật debug=True để xem lỗi và để server tự khởi động lại khi sửa code
     app.run(host='0.0.0.0', port=5000, debug=True)
+

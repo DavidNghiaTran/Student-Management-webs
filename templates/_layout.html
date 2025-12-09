@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,170 +8,200 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     {% block styles %}{% endblock %}
-    
+
 </head>
+
 <body>
-<div class="app-shell">
+    <div class="app-shell">
 
-    <header class="app-header">
-        <div class="header-logo">
-            <img src="{{ url_for('static', filename='Logo.png') }}" alt="Logo">
-            <a href="{{ url_for('home') }}" class="header-logo-text">Quản lý Đào tạo</a>
-        </div>
-        <div class="header-actions">
-            <nav class="header-nav">
-                <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">
-                    <i class="fa-solid fa-house"></i>
-                    <span>Trang chủ</span>
-                </a>
-                {% if current_user.is_authenticated %}
+        <header class="app-header">
+            <a href="{{ url_for('home') }}" class="header-logo">
+                <img src="{{ url_for('static', filename='Logo.png') }}" alt="Logo">
+                <span class="header-logo-text">Quản lý Đào tạo</span>
+            </a>
+            <div class="header-actions">
+                <nav class="header-nav">
+                    <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">
+                        <i class="fa-solid fa-house"></i>
+                        <span>Trang chủ</span>
+                    </a>
+                    {% if current_user.is_authenticated %}
                     {% if current_user.vai_tro.value == 'SINHVIEN' %}
-                        <a href="{{ url_for('student_dashboard') }}" class="{% if request.endpoint == 'student_dashboard' %}active{% endif %}">
-                            <i class="fa-solid fa-graduation-cap"></i>
-                            <span>Bảng tin SV</span>
-                        </a>
+                    <a href="{{ url_for('student_dashboard') }}"
+                        class="{% if request.endpoint == 'student_dashboard' %}active{% endif %}">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                        <span>Bảng tin SV</span>
+                    </a>
                     {% else %}
-                        <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
-                            <i class="fa-solid fa-gauge-high"></i>
-                            <span>Quản trị</span>
-                        </a>
+                    <a href="{{ url_for('admin_dashboard') }}"
+                        class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <span>Quản trị</span>
+                    </a>
                     {% endif %}
-                {% endif %}
-            </nav>
+                    {% endif %}
+                </nav>
 
-            {% if current_user.is_authenticated %}
+                {% if current_user.is_authenticated %}
                 <div class="header-user">
                     <span class="user-role">
-                        <i class="fa-solid fa-circle"></i>
                         {{ 'Sinh viên' if current_user.vai_tro.value == 'SINHVIEN' else 'Giáo viên' }}
                     </span>
                     <span class="user-name">{{ current_user.username }}</span>
                 </div>
-            {% else %}
-                <a href="{{ url_for('login') }}" class="btn btn-ghost header-login">
+                {% else %}
+                <a href="{{ url_for('login') }}" class="btn btn-primary header-login">
                     <i class="fa-solid fa-right-to-bracket"></i>
                     Đăng nhập
                 </a>
-            {% endif %}
-        </div>
-    </header>
+                {% endif %}
+            </div>
+        </header>
 
-    <div class="app-container">
+        <div class="app-container">
 
-        <main class="main-content">
-            
-            {% with messages = get_flashed_messages(with_categories=true) %}
-              {% if messages %}
+            <main class="main-content">
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
                 {% for category, message in messages %}
-                  <div class="flash {{ category }}">{{ message }}</div>
+                <div class="flash {{ category }}">{{ message }}</div>
                 {% endfor %}
-              {% endif %}
-            {% endwith %}
+                {% endif %}
+                {% endwith %}
 
-            {% block content %}
+                {% block content %}
                 <div class="card">
                     <div class="card-header">Chào mừng</div>
                     <div class="card-body">
                         Đây là hệ thống Quản lý Sinh viên.
                     </div>
                 </div>
-            {% endblock %}
+                {% endblock %}
 
-        </main>
+            </main>
 
-        <aside class="sidebar-right">
+            <aside class="sidebar-right">
 
-    {% if current_user.is_authenticated %}
-        
-        <div class="sidebar-group">
-            <h3 class="sidebar-header">Tài khoản</h3>
-            <div class="sidebar-content">
-                <strong>Tài khoản:</strong> {{ current_user.username }}<br>
+                {% if current_user.is_authenticated %}
 
-                <strong>Họ tên:</strong> 
+                <div class="sidebar-group">
+                    <h3 class="sidebar-header">Tài khoản</h3>
+                    <div class="sidebar-content">
+                        <strong>Tài khoản:</strong> {{ current_user.username }}<br>
+                        <strong>Họ tên:</strong>
                         {% if current_user.sinh_vien %}
-                            {{ current_user.sinh_vien.ho_ten }}
+                        {{ current_user.sinh_vien.ho_ten }}
                         {% elif current_user.giao_vien %}
-                            {{ current_user.giao_vien.ho_ten }}
+                        {{ current_user.giao_vien.ho_ten }}
                         {% else %}
-                            N/A
+                        N/A
                         {% endif %}
                         <br>
+                        <strong>Vai trò:</strong> {{ 'Sinh viên' if current_user.vai_tro.value == 'SINHVIEN' else 'Giáo
+                        viên' }}
+                    </div>
+                    <nav class="sidebar-nav">
+                        <a href="{{ url_for('logout') }}" class="logout-link">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            Đăng xuất
+                        </a>
+                    </nav>
+                </div>
 
-                <strong>Vai trò:</strong> {{ 'Sinh viên' if current_user.vai_tro.value == 'SINHVIEN' else 'Giáo viên' }}
-            </div>
-            <nav class="sidebar-nav">
-                <a href="{{ url_for('logout') }}" class="logout-link">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                    Đăng xuất
-                </a>
-            </nav>
-        </div>
+                <div class="sidebar-group">
+                    <h3 class="sidebar-header">Tính năng</h3>
+                    <nav class="sidebar-nav">
+                        {% if current_user.vai_tro.value == 'SINHVIEN' %}
+                        <a href="{{ url_for('student_dashboard') }}"><i class="fa-solid fa-bell"></i> Thông báo</a>
+                        <a href="{{ url_for('student_profile') }}"><i class="fa-solid fa-user-pen"></i> Thông tin cá
+                            nhân</a>
+                        <a href="{{ url_for('student_grades') }}"><i class="fa-solid fa-chart-simple"></i> Xem điểm &
+                            GPA</a>
+                        <a href="{{ url_for('student_progress') }}"><i class="fa-solid fa-chart-line"></i> Tiến độ học
+                            tập</a>
+                        <a href="{{ url_for('student_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch
+                            học</a>
+                        <a href="{{ url_for('student_assignments') }}"><i class="fa-solid fa-list-check"></i> Bài tập
+                            được giao</a>
+                        {% elif current_user.vai_tro.value == 'ADMIN' %}
+                        <a href="{{ url_for('thong_bao_chung') }}"><i class="fa-solid fa-bell"></i> Thông báo chung</a>
+                        <a href="{{ url_for('admin_manage_teachers') }}"><i class="fa-solid fa-chalkboard-user"></i>
+                            Quản lý Giảng viên</a>
+                        <a href="{{ url_for('admin_manage_teacher_assignments') }}"><i
+                                class="fa-solid fa-people-arrows"></i> Phân công GV</a>
+                        <a href="{{ url_for('admin_manage_students') }}"><i class="fa-solid fa-users"></i> Quản lý
+                            SV</a>
+                        <a href="{{ url_for('admin_manage_courses') }}"><i class="fa-solid fa-book"></i> Quản lý Môn
+                            học</a>
+                        <a href="{{ url_for('admin_manage_grades') }}"><i class="fa-solid fa-pen-to-square"></i> Quản lý
+                            Điểm</a>
+                        <a href="{{ url_for('admin_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch giảng
+                            dạy</a>
+                        <a href="{{ url_for('admin_assignments') }}"><i class="fa-solid fa-list-check"></i> Giao bài
+                            tập</a>
+                        <a href="{{ url_for('admin_progress') }}"><i class="fa-solid fa-chart-line"></i> Theo dõi tiến
+                            độ</a>
+                        <a href="{{ url_for('admin_reports_index') }}"><i class="fa-solid fa-chart-bar"></i> Báo cáo &
+                            Thống kê</a>
+                        <a href="{{ url_for('admin_send_notification') }}"><i class="fa-solid fa-paper-plane"></i> Gửi
+                            Thông báo</a>
+                        {% elif current_user.vai_tro.value == 'GIAOVIEN' %}
+                        <a href="{{ url_for('thong_bao_chung') }}"><i class="fa-solid fa-bell"></i> Thông báo chung</a>
+                        <a href="{{ url_for('admin_manage_teachers') }}"><i class="fa-solid fa-chalkboard-user"></i>
+                            Quản lý Giảng viên</a>
+                        <a href="{{ url_for('admin_profile') }}"><i class="fa-solid fa-id-badge"></i> Hồ sơ Giảng
+                            viên</a>
+                        <a href="{{ url_for('admin_manage_grades') }}"><i class="fa-solid fa-pen-to-square"></i> Quản lý
+                            Điểm</a>
+                        <a href="{{ url_for('admin_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch giảng
+                            dạy</a>
+                        <a href="{{ url_for('admin_assignments') }}"><i class="fa-solid fa-list-check"></i> Giao bài
+                            tập</a>
+                        <a href="{{ url_for('admin_manage_students') }}"><i class="fa-solid fa-users"></i> Sinh viên lớp
+                            dạy</a>
+                        <a href="{{ url_for('admin_send_notification') }}"><i class="fa-solid fa-paper-plane"></i> Gửi
+                            Thông báo</a>
+                        {% endif %}
+                    </nav>
+                </div>
 
-        <div class="sidebar-group">
-            <h3 class="sidebar-header">Tính năng</h3>
-            <nav class="sidebar-nav">
-            {% if current_user.vai_tro.value == 'SINHVIEN' %}
-                <a href="{{ url_for('student_dashboard') }}"><i class="fa-solid fa-bell"></i> Thông báo</a>
-                <a href="{{ url_for('student_profile') }}"><i class="fa-solid fa-user-pen"></i> Thông tin cá nhân</a>
-                <a href="{{ url_for('student_grades') }}"><i class="fa-solid fa-chart-simple"></i> Xem điểm & GPA</a>
-                <a href="{{ url_for('student_progress') }}"><i class="fa-solid fa-chart-line"></i> Tiến độ học tập</a>
-                <a href="{{ url_for('student_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch học</a>
-                <a href="{{ url_for('student_assignments') }}"><i class="fa-solid fa-list-check"></i> Bài tập được giao</a>
-            {% elif current_user.vai_tro.value == 'GIAOVIEN' %}
-           
+                {% else %}
 
+                <div class="sidebar-group">
+                    <h3 class="sidebar-header">Đăng nhập</h3>
+                    <div class="sidebar-content">
+                        <p>Vui lòng đăng nhập tại trang chính để sử dụng các tính năng.</p>
+                    </div>
+                </div>
 
-                    <a href="{{ url_for('thong_bao_chung') }}"><i class="fa-solid fa-bell"></i> Thông báo chung</a>
-                    <a href="{{ url_for('admin_manage_teachers') }}"><i class="fa-solid fa-chalkboard-user"></i> Quản lý Giảng viên</a>
-
- 
-                    <a href="{{ url_for('admin_manage_students') }}"><i class="fa-solid fa-users"></i> Quản lý Sinh viên </a>
-                    <a href="{{ url_for('admin_manage_courses') }}"><i class="fa-solid fa-book"></i> Quản lý Môn học</a>
-                    <a href="{{ url_for('admin_manage_grades') }}"><i class="fa-solid fa-pen-to-square"></i> Quản lý Điểm </a>
-                    <a href="{{ url_for('admin_schedule') }}"><i class="fa-solid fa-calendar-days"></i> Lịch giảng dạy</a>
-                    <a href="{{ url_for('admin_assignments') }}"><i class="fa-solid fa-list-check"></i> Giao bài tập</a>
-                    <a href="{{ url_for('admin_progress') }}"><i class="fa-solid fa-chart-line"></i> Theo dõi tiến độ</a>
-                    <a href="{{ url_for('admin_reports_index') }}"><i class="fa-solid fa-chart-bar"></i> Báo cáo & Thống kê</a>
-                    <a href="{{ url_for('admin_send_notification') }}"><i class="fa-solid fa-paper-plane"></i> Gửi Thông báo</a>
                 {% endif %}
-            </nav>
+
+            </aside>
+
         </div>
 
-    {% else %}
-
-        <div class="sidebar-group">
-            <h3 class="sidebar-header">Đăng nhập</h3>
-            <div class="sidebar-content">
-                <p>Vui lòng đăng nhập tại trang chính để sử dụng các tính năng.</p>
+        <footer class="app-footer">
+            <p>Copyright &copy; 2025 - Hệ thống Quản lý Sinh viên (Phát triển bởi Trần Trung Nghĩa)</p>
+            <div class="footer-stats">
+                <span><i class="fa-solid fa-globe"></i> Đang truy cập: 15</span>
+                <span><i class="fa-solid fa-user-graduate"></i> SV đăng nhập: 82</span>
+                <span><i class="fa-solid fa-user-tie"></i> GV đăng nhập: 4</span>
             </div>
-        </div>
+        </footer>
 
-    {% endif %}
-
-</aside>
-
+        {% block scripts %}{% endblock %}
 
     </div>
-
-    <footer class="app-footer">
-        <p>Copyright &copy; 2024 - Hệ thống Quản lý Sinh viên (Phát triển bởi Trần Trung Nghĩa)</p>
-        <div class="footer-stats">
-            <span><i class="fa-solid fa-globe"></i> Đang truy cập: 15</span>
-            <span><i class="fa-solid fa-user-graduate"></i> SV đăng nhập: 82</span>
-            <span><i class="fa-solid fa-user-tie"></i> GV đăng nhập: 4</span>
-        </div>
-    </footer>
-
-    {% block scripts %}{% endblock %}
-
-</div>
 </body>
+
 </html>
